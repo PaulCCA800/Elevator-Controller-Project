@@ -3,7 +3,7 @@ use std::net::UdpSocket;
 pub fn
 start_server()
 {
-    let socket = UdpSocket::bind("0.0.0.0:34254").unwrap();
+    let socket = UdpSocket::bind("0.0.0.0:4000").unwrap();
     let mut buffer = [0; 1024];
 
     loop
