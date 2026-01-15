@@ -1,3 +1,5 @@
+mod udp_srv;
+
 fn main() {
-    println!("Hello, world!");
+    let _ = udp_srv::start_server();
 }
