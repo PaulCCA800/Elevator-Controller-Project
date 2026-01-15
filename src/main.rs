@@ -32,5 +32,48 @@ main()
 
     println!("Total num is {}", *i.lock().unwrap());
 
-    println!()
+    println!("Start Part 2.");
+
+    //let vec = VecDeque::new();
+    //vec.
+    let i: Arc<Mutex<VecDeque<i32>>> = Arc::new(Mutex::new(VecDeque::new()));
+
+    let p_out = i.clone();
+    let c_out = i.clone();
+
+    let p_inc = thread::spawn(move || {
+        for i in 0i32..=30i32
+        {
+            let mut p_out = p_out.lock().unwrap();
+            println!("Push {i}...");
+            p_out.push_front(i);
+        }
+    });
+
+    let c_inc = thread::spawn(move || {
+        loop
+        {
+            let mut c_out = c_out.lock().unwrap();
+            match c_out.pop_back()
+            {
+                None => {
+                    println!("Pop Failed...");
+                },
+                Some(i) => {
+                    println!("Pop {i}...");
+                    if i == 30
+                    {
+                        break;
+                    }
+                },
+            };
+        }
+    });
+
+    p_inc.join().unwrap();
+    c_inc.join().unwrap();
+
+
+
+
 }
