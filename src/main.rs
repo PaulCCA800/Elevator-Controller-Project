@@ -9,6 +9,7 @@ use std::thread;
 use std::time::Duration;
 
 const PATH: &str = "src/commands.txt";
+const ASCII_OFFSET: u8 = 48;
 
 fn main() {
     let mut count = 0;
@@ -53,7 +54,7 @@ fn
 write_to_file(path: &str, val: u8)
 {
     let mut f = File::create(path).unwrap();
-    let val = val + 32;
+    let val = val + ASCII_OFFSET;
     let _ = f.write_all(&[val.to_ascii_lowercase()]);
     let _ = f.flush();
 }
