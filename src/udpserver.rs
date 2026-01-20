@@ -13,7 +13,7 @@ impl Server
     pub fn
     init_server() -> Self
     {
-        let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
+        let socket = UdpSocket::bind("0.0.0.0:4000").unwrap();
         
         println!("UDP Server Started at {:?}", socket.local_addr().unwrap());
 
@@ -42,7 +42,7 @@ impl Server
         self._server.send_to(transmit_buffer, self._server.local_addr().unwrap()).unwrap();
         self._server.broadcast().unwrap();
 
-        if transmit_buffer != [0; 100]
+        if transmit_buffer != [0; 1]
         {
             println!("Transmiting {:?}", transmit_buffer);
         }
@@ -57,7 +57,7 @@ impl Server
             Err(_) => Some(1)
         };
         
-        if external_buffer != [0; 100]
+        if external_buffer != [0; 1]
         {
             let s = str::from_utf8(external_buffer).unwrap();
             println!("Recieved {:?}", s);
