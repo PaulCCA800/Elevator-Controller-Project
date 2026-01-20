@@ -3,17 +3,20 @@ use std::io::Write;
 use std::process::Command;
 
 use std::env;
-use std::fs;
 
 use std::thread;
 use std::time::Duration;
+
+mod udpserver;
+use crate::udpserver::Server;
 
 const PATH: &str = "src/commands.txt";
 const ASCII_OFFSET: u8 = 48;
 
 fn main() {
-    let mut count = 0;
+    let mut _sever: Server = Server::init_server();
 
+    let mut count = 0;
     let mut is_host = 0;
 
     let args: Vec<String> = env::args().collect();
