@@ -14,8 +14,15 @@ const PATH: &str = "src/commands.txt";
 const ASCII_OFFSET: u8 = 48;
 
 fn main() {
-    let mut _sever: Server = Server::init_server();
+    let r_buf: &mut [u8; 100] = &mut [0; 100];
+    let t_buf: &mut [u8; 100] = &mut [0; 100];
 
+    let sever: Server = Server::init_server();
+    
+    loop {
+        sever.update(r_buf, t_buf);
+    }
+    
     let mut count = 0;
     let mut is_host = 0;
 
