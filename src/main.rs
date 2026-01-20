@@ -1,70 +1,37 @@
-use std::fs::File;
-use std::io::Write;
-use std::process::Command;
-
 use std::env;
-
 use std::thread;
 use std::time::Duration;
 
 mod udpserver;
+mod misc;
 use crate::udpserver::Server;
 
 const PATH: &str = "src/commands.txt";
-const ASCII_OFFSET: u8 = 48;
 
 fn main() {
+    let mut is_host: bool = false;
+
+    let mut value: u8 = 0;
+
     let r_buf: &mut [u8; 100] = &mut [0; 100];
     let t_buf: &mut [u8; 100] = &mut [0; 100];
 
     let sever: Server = Server::init_server();
     
     loop {
+        match is_host
+        {
+            false => {
+
+            },
+            true => {
+                println!("{value}");
+
+                value += 1;
+                misc::write_to_file(PATH, value);
+            },
+        }
+
         sever.update(r_buf, t_buf);
     }
-    
-    let mut count = 0;
-    let mut is_host = 0;
-
-    let args: Vec<String> = env::args().collect();
-    let item = &args[1];
-    if item == "help"
-    {
-        let _ = Command::new("kitty")
-            .args(&["cargo", "run", "--", "else"])
-            .spawn()
-            .expect("Error Something Broke");
-        is_host = 1;
-    }
-    
-    loop
-    {
-        thread::sleep(Duration::from_secs(1));
-        print_and_log(&mut count, &mut is_host);
-        if count == 5
-        {
-            break;
-        }
-    }
-}
-
-fn
-print_and_log(count: &mut u8, is_host: &mut i32)
-{
-    println!("{}", count);
-    let val: u8 = count.clone();
-    if *is_host == 1
-    {
-        write_to_file(PATH, val);
-    }
-    *count += 1;
-}
-
-fn
-write_to_file(path: &str, val: u8)
-{
-    let mut f = File::create(path).unwrap();
-    let val = val + ASCII_OFFSET;
-    let _ = f.write_all(&[val.to_ascii_lowercase()]);
-    let _ = f.flush();
 }

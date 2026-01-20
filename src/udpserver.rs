@@ -54,7 +54,7 @@ impl Server
         match self._server.recv_from(external_buffer)
         {
             Ok(_) => None,
-            Err(_) => Some((1))
+            Err(_) => Some(1)
         };
         
         if external_buffer != [0; 100]
