@@ -25,7 +25,7 @@ read_from_file(path: &str) -> u8
 }
 
 pub fn
-start_backup()
+spawn_process()
 {
     let _ = Command::new("kitty")
         .args(&["cargo", "run"])
