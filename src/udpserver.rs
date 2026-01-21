@@ -39,9 +39,9 @@ impl Server
     {        
         match self._server.send_to(transmit_buffer, target)
         {
-            Ok(i) =>
+            Ok(_) =>
             {
-                println!("Transmited to backup, {} bytes", i);
+                ()
             }
             Err(e) =>
             {
@@ -56,11 +56,9 @@ impl Server
         
         match self._server.recv_from(external_buffer)
         {
-            Ok((size, src)) => 
+            Ok(_) => 
             {
-                println!("Packet from: {}, and size: {}", src, size);
-                self.network_transmit(&mut [1], src.to_string().as_mut_str());
-                
+                () 
             },
             Err(e) =>
             {
