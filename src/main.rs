@@ -11,14 +11,12 @@ const MAX_MISSED_MSG: u8 = 4;
 
 fn main() {
     let server_arc: Arc<Mutex<Server>> = Arc::new(Mutex::new(Server::init_server()));
-    
-    let mut missed_msg_count: u8 = 0;
-
     let is_host_arc: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
 
     let is_host_counting = is_host_arc.clone();
     let is_host_transmit = is_host_arc.clone();
 
+    let mut missed_msg_count: u8 = 0;
     let mut txbuf: [u8; 1] = [0; 1];
     let mut rxbuf: [u8; 1] = [0; 1];
 
