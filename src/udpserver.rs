@@ -1,70 +1,66 @@
+use std::fmt::Error;
 use std::net::UdpSocket;
 use std::str;
 
-pub const BACKUP_ADDR: &str = "127.0.0.1:3000";
-pub const PRODUC_ADDR: &str = "0.0.0.0:8000";
+use crate::message;
+
+const DEFAULT_ADDR: &str = "0.0.0.0:0";
 
 pub struct 
 Server
 {
-    _server: UdpSocket,
+    server: UdpSocket,
+    recv_queue: Vec<u8>
 }
 
 impl Server
 {
     pub fn
-    init_server() -> Self
+    spawn() -> Self
     {
-        let socket = UdpSocket::bind(BACKUP_ADDR).unwrap(); 
+        let socket = UdpSocket::bind(DEFAULT_ADDR).unwrap(); 
         println!("UDP Server Started at {:?}", socket.local_addr().unwrap());
         socket.set_nonblocking(true).unwrap();
 
         Self{
-            _server: socket,
-        }
-        
-    }
-
-    pub fn
-    server_rebind(&mut self)
-    {
-        if self._server.local_addr().unwrap().to_string() == BACKUP_ADDR
-        {
-            self._server = UdpSocket::bind(PRODUC_ADDR).unwrap();
+            server: socket,
+            recv_queue: Vec::new(),
         }
     }
 
     pub fn
-    network_transmit(&self, transmit_buffer: &mut [u8], target: &str)
+    network_transmit(&self, message: message::Msg)
     {        
-        match self._server.send_to(transmit_buffer, target)
-        {
-            Ok(_) =>
-            {
-                ()
-            }
-            Err(e) =>
-            {
-                println!("Error! {}", e);
-            }
-        }
+        let transmit_msg = message.convert_msg();
+        self.server.send(&transmit_msg)
+            .expect("Network transmit failed.");
     }
 
     pub fn
-    network_recieve(&self, external_buffer: &mut [u8])
+    network_recieve(&mut self) -> message::Msg
     {
+        let _ = self.server.recv_from(&mut self.recv_queue)
+            .expect("Failed to receive data");
+
+        let recv = self.decode().expect("Message Decode Failed");
         
-        match self._server.recv_from(external_buffer)
-        {
-            Ok(_) => 
-            {
-                () 
-            },
-            Err(e) =>
-            {
-                println!("Error! {}", e);
-            },
-        };
+        self.recv_queue.clear();
+
+        let src = &recv[0];
+        let sync = &recv[1];
+        let data = &recv[2];
+
+        message::Msg::new(String::from(src), sync.parse::<u8>().unwrap(), String::from(data)) 
+    }
+
+    fn
+    decode(&self) -> Result<Vec<String>, Error>
+    {
+        let mut temp: Vec<String> = Vec::new();
+        temp.push(String::from("reee"));
+        temp.push(String::from("reee"));
+        temp.push(String::from("reee"));
+        Ok(temp)
     }
 
 }
