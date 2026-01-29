@@ -32,7 +32,7 @@ pub mod message
     UdpMsg
     {
         pub fn
-        create(
+        new(
             src: Vec<u8>, 
             packet_nr: u16, 
             msg_type: MsgType, 
@@ -69,7 +69,7 @@ pub mod message
     InternalMsg
     {
         pub fn
-        create(src: Vec<u8>, data: Vec<u8>) -> Self
+        new(src: Vec<u8>, data: Vec<u8>) -> Self
         {
             Self 
             { 
