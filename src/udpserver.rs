@@ -20,22 +20,17 @@ udp_server
         pub fn
         spawn() -> Self
         {
-            let socket = UdpSocket::bind(DEFAULT_ADDR)
-                .expect("Failed to initialize UDP server.");
-            
-            socket.connect("8.8.8.8:8080")
-                .expect("Failed to connect");
-
-            let ip_addr = socket.local_addr().unwrap().ip();
-
-            let socket = UdpSocket::bind((ip_addr, 0))
+            let socket = UdpSocket::bind("127.0.0.1:0")
                 .expect("Failed to initialize UDP server.");
 
             socket.set_broadcast(true)
                 .expect("Failed to set Broadcast");
 
-            //socket.set_nonblocking(true)
-            //    .expect("Failed to set non-blocking.");
+            socket.set_nonblocking(true)
+                .expect("Failed to set non-blocking.");
+
+            //socket.connect("255.255.255.255:8080")
+                //.expect("Failed to connect");
 
             println!("Server started at: {}", socket.local_addr().unwrap());
 
@@ -51,7 +46,7 @@ udp_server
         {
             let transmit_buffer = message.encode();
 
-            let a = self.server.send_to(&transmit_buffer, self.server.local_addr().unwrap());
+            let a = self.server.send_to(&transmit_buffer, "255.255.255.255:8080");
             match a {
                 Ok(_) => (),
                 Err(e) => println!("Error: {e}")
