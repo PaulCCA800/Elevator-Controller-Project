@@ -13,10 +13,10 @@ fn main() {
 
         loop
         {
-            let huh = "I HAVE NO MOUTH AND I MUST SCREAM";
+            let huh = "I HAVE NO MOUTH AND I MUST SCREAM\n";
             let data = UdpMsg::new(1, 1, message::message::MsgType::Broadcast, huh.as_bytes().to_vec());
 
-            server.network_recieve();
+            //server.network_recieve();
             server.network_transmit(data);
         }
     }
