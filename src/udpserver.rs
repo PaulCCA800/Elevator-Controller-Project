@@ -31,8 +31,16 @@ udp_server
             let socket = UdpSocket::bind(DEFAULT_ADDR)
                 .expect("Failed to initialize UDP server.");
             
+            socket.set_broadcast(true)
+                .expect("Failed to set Broadcast");
+
             socket.set_nonblocking(true)
                 .expect("Failed to set non-blocking.");
+
+            socket.connect("255.255.255.255:0")
+                .expect("Failed to connect");
+
+            println!("Server started at: {}", socket.local_addr().unwrap());
 
             Self
             {
@@ -53,9 +61,17 @@ udp_server
         network_recieve(&mut self)
         {
             let mut local_buf: Vec<u8> = Vec::new(); 
-            let (size, _src) = self.server.recv_from(&mut local_buf).unwrap();
+            let recv_status = self.server.recv_from(&mut local_buf);
 
-            self.recv_queue.push(UdpMsg::decode(local_buf, size));
+            match recv_status
+            {
+                Ok(recv_tup) =>
+                {
+                    self.recv_queue.push(UdpMsg::decode(local_buf, recv_tup.0));
+                },
+                Err(_) =>
+                    ()
+            }
         }
     }
 }

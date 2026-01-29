@@ -3,52 +3,24 @@ use std::thread;
 pub mod udpserver;
 pub mod message;
 
-use crate::udpserver::Server;
+use crate::{message::message::UdpMsg, udpserver::udp_server::Server};
 
 fn main() {
 
-    
-
     let network_thread = thread::spawn(move || 
     {
-        let server: Server = Server::spawn();
+        let mut server: Server = Server::spawn();
 
         loop
         {
-            
-        }
-    }
-    );
+            let huh = "I HAVE NO MOUTH AND I MUST SCREAM";
+            let data = UdpMsg::new(1, 1, message::message::MsgType::Broadcast, huh.as_bytes().to_vec());
 
-    let memory_thread = thread::spawn(move || 
-    {
-        loop
-        {
-
-        }
-    }
-    );
-
-    let hardware_thread = thread::spawn(move || 
-    {
-        loop
-        {
-
-        }
-    }
-    );
-
-    let decision_thread = thread::spawn(move || 
-    {
-        loop
-        {
-
+            server.network_recieve();
+            server.network_transmit(data);
         }
     }
     );
 
     network_thread.join().unwrap();
-    memory_thread.join().unwrap();
-    hardware_thread.join().unwrap();
-    decision_thread.join().unwrap();
 }
