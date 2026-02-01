@@ -53,8 +53,8 @@ message
     pub struct
     InternalMsg
     {
-        src         : u8,
-        data        : Vec<u8>
+        _src         : u8,
+        _data        : Vec<u8>
     }
 
     impl
@@ -126,17 +126,17 @@ message
     InternalMsg
     {
         pub fn
-        new(src: u8, data: Vec<u8>) -> Self
+        new(_src: u8, _data: Vec<u8>) -> Self
         {
             Self 
             { 
-                src, 
-                data, 
+                _src, 
+                _data, 
             }
         }
 
         pub fn
-        deserialize_from_udp(&self, message: UdpMsg) -> () //InternalMsg
+        deserialize_from_udp(&self, _message: UdpMsg) -> () //InternalMsg
         {
             ()
         }

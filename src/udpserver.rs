@@ -1,11 +1,11 @@
 pub mod
 udp_server
 {
-    use std::net::UdpSocket;
+    use std::{fmt::Error, net::UdpSocket};
 
     use crate::message::message::UdpMsg;
 
-    const DEFAULT_ADDR: &str = "0.0.0.0:0";
+    const DEFAULT_ADDR: &str = "0.0.0.0:8080";
 
     pub struct
     Server
@@ -20,7 +20,7 @@ udp_server
         pub fn
         spawn() -> Self
         {
-            let socket = UdpSocket::bind("127.0.0.1:0")
+            let socket = UdpSocket::bind(DEFAULT_ADDR)
                 .expect("Failed to initialize UDP server.");
 
             socket.set_broadcast(true)
@@ -28,9 +28,6 @@ udp_server
 
             socket.set_nonblocking(true)
                 .expect("Failed to set non-blocking.");
-
-            //socket.connect("255.255.255.255:8080")
-                //.expect("Failed to connect");
 
             println!("Server started at: {}", socket.local_addr().unwrap());
 
@@ -69,6 +66,12 @@ udp_server
                 Err(_) =>
                     ()
             }
+        }
+
+        pub fn
+        get_message(&mut self) -> Result<UdpMsg, Error>
+        {            
+            Ok(self.recv_queue.pop().unwrap())
         }
     }
 }

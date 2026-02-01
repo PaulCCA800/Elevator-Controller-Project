@@ -1,26 +1,74 @@
-use std::thread;
+use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::{Mutex, Arc};
+use std::time;
+use std::thread::{self, JoinHandle};
 
 pub mod udpserver;
 pub mod message;
 
-use crate::{message::message::UdpMsg, udpserver::udp_server::Server};
+use crate::message::message::UdpMsg;
+use crate::udpserver::udp_server::Server;
 
 fn main() {
+    let mut elevator_threads: Vec<JoinHandle<()>> = vec![];
 
-    let network_thread = thread::spawn(move || 
+    let udp_server: Arc<Mutex<Server>> = Arc::new(Mutex::new(Server::spawn()));
+
+    let udp_server_tx = udp_server.clone();
+    let udp_server_rx = udp_server.clone();
+
+    let (network_rx, network_tx): (Sender<UdpMsg>, Receiver<UdpMsg>) = mpsc::channel();
+
+    // Network Tx Thread
+    elevator_threads.push(thread::spawn(move ||
     {
-        let mut server: Server = Server::spawn();
-
         loop
         {
-            let huh = "I HAVE NO MOUTH AND I MUST SCREAM\n";
-            let data = UdpMsg::new(1, 1, message::message::MsgType::Broadcast, huh.as_bytes().to_vec());
+            {
+                let udp_lock = udp_server_tx.lock().unwrap();
 
-            //server.network_recieve();
-            server.network_transmit(data);
+                match network_tx.recv()
+                {
+                    Ok(i)   =>
+                    {
+                        udp_lock.network_transmit(i);
+                    },
+                    Err(_)          => {
+                        ()
+                    }
+                }
+            }
+            thread::sleep(time::Duration::from_millis(10));
         }
-    }
-    );
+    }));
 
-    network_thread.join().unwrap();
+    // Network Rx Thread
+    elevator_threads.push(thread::spawn(move ||
+    {
+        loop 
+        {
+            {
+                let mut udp_lock = udp_server_rx.lock().unwrap();
+
+                udp_lock.network_recieve();
+
+                match udp_lock.get_message()
+                {
+                    Ok(i) => {
+                        network_rx.send(i).unwrap();
+                    },
+                    Err(_)=>{
+                        ()
+                    }
+                }
+
+            }    
+            thread::sleep(time::Duration::from_millis(10));
+        }
+    }));
+
+    for t in elevator_threads
+    {
+        t.join().unwrap();
+    }
 }
