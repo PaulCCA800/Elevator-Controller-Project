@@ -1,7 +1,7 @@
 pub mod
 udp_server
 {
-    use std::net::UdpSocket;
+    use std::{net::UdpSocket, net::SocketAddr};
 
     use crate::message::message::UdpMsg;
 
@@ -11,6 +11,7 @@ udp_server
     Server
     {
         server      : UdpSocket,
+        local_addr  : SocketAddr,
         recv_queue  : Vec<UdpMsg>
     }
 
@@ -33,9 +34,18 @@ udp_server
 
             Self
             {
-                server: socket,
-                recv_queue: Vec::new(),
+                server      : socket,
+                local_addr  : Server::get_local_ip(),
+                recv_queue  : Vec::new(),
             }
+        }
+
+        fn
+        get_local_ip() -> SocketAddr
+        {
+            let temp_local_ip = UdpSocket::bind("0.0.0.0:0").unwrap();
+            temp_local_ip.connect("192.168.0.1:40000").unwrap();
+            temp_local_ip.local_addr().unwrap()
         }
 
         pub fn
@@ -63,11 +73,15 @@ udp_server
             {
                 Ok(recv_tup) =>
                 {
-                    println!("Recived packet from {}", recv_tup.1);
+                    // Filter self sent packets
+                    if recv_tup.1.ip() != self.local_addr.ip()
+                    {
+                        println!("Recived packet from {}", recv_tup.1);
+                    
+                        let msg = UdpMsg::decode(local_buf_vec, recv_tup.0);
 
-                    let msg = UdpMsg::decode(local_buf_vec, recv_tup.0);
-
-                    self.recv_queue.push(msg);
+                        self.recv_queue.push(msg);
+                    }
                 },
                 Err(_) =>
                     ()

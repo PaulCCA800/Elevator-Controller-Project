@@ -18,7 +18,7 @@ fn main() {
     let udp_server_rx = udp_server.clone();
 
     let (network_sender, _decision_receiver): (Sender<UdpMsg>, Receiver<UdpMsg>) = mpsc::channel();
-    let (_decision_sender, network_receiver): (Sender<UdpMsg>, Receiver<UdpMsg>) = mpsc::channel();
+    let (decision_sender, network_receiver): (Sender<UdpMsg>, Receiver<UdpMsg>) = mpsc::channel();
 
     // Network Tx Thread
     elevator_threads.push(thread::spawn(move ||
@@ -77,7 +77,9 @@ fn main() {
         loop
         {  
             {
-
+                let msg_data = "Decision Channel Test";
+                let temp_msg = UdpMsg::new(2, 12345, message::message::MsgType::Broadcast, msg_data.as_bytes().to_vec());
+                decision_sender.send(temp_msg).unwrap();
             }
             thread::sleep(time::Duration::from_millis(500));
         }
