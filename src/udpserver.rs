@@ -53,15 +53,21 @@ udp_server
         pub fn
         network_recieve(&mut self)
         {
-            let mut local_buf: Vec<u8> = Vec::new(); 
-            let recv_status = self.server.recv(&mut local_buf);
+            let mut local_buf_vec: Vec<u8> = Vec::new(); 
+            let mut local_buf = [0u8; 1024];
+            let recv_status = self.server.recv_from(&mut local_buf);
+
+            local_buf_vec.append(&mut local_buf.to_vec());
 
             match recv_status
             {
                 Ok(recv_tup) =>
                 {
-                    println!("Something from {}", recv_tup);
-                    self.recv_queue.push(UdpMsg::decode(local_buf, recv_tup));
+                    println!("Recived packet from {}", recv_tup.1);
+
+                    let msg = UdpMsg::decode(local_buf_vec, recv_tup.0);
+
+                    self.recv_queue.push(msg);
                 },
                 Err(_) =>
                     ()
@@ -69,9 +75,9 @@ udp_server
         }
 
         pub fn
-        get_message(&mut self) -> Result<UdpMsg, Error>
-        {            
-            Ok(self.recv_queue.pop().unwrap())
+        get_message(&mut self) -> Option<UdpMsg>
+        {      
+            self.recv_queue.pop()
         }
     }
 }

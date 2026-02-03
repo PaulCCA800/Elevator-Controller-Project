@@ -47,7 +47,7 @@ message
         src         : u8,
         sequence_nr : u16,
         msg_type    : MsgType,
-        data        : Vec<u8>,
+        data    : Vec<u8>,
     }
 
     pub struct

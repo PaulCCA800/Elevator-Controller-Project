@@ -17,7 +17,8 @@ fn main() {
     let udp_server_tx = udp_server.clone();
     let udp_server_rx = udp_server.clone();
 
-    let (network_rx, network_tx): (Sender<UdpMsg>, Receiver<UdpMsg>) = mpsc::channel();
+    let (network_sender, _decision_receiver): (Sender<UdpMsg>, Receiver<UdpMsg>) = mpsc::channel();
+    let (_decision_sender, _network_receiver): (Sender<UdpMsg>, Receiver<UdpMsg>) = mpsc::channel();
 
     // Network Tx Thread
     elevator_threads.push(thread::spawn(move ||
@@ -27,16 +28,16 @@ fn main() {
             {
                 let udp_lock = udp_server_tx.lock().unwrap();
 
-                match network_tx.recv()
-                {
-                    Ok(i)   =>
-                    {
-                        udp_lock.network_transmit(i);
-                    },
-                    Err(_)          => {
-                        ()
-                    }
-                }
+                //match network_tx.recv()
+                //{
+                //    Ok(i)   =>
+                //    {
+                //        udp_lock.network_transmit(i);
+                //    },
+                //    Err(_)          => {
+                //        ()
+                //    }
+                //}
             }
             thread::sleep(time::Duration::from_millis(10));
         }
@@ -54,10 +55,12 @@ fn main() {
 
                 match udp_lock.get_message()
                 {
-                    Ok(i) => {
-                        network_rx.send(i).unwrap();
+                    Some(i) => 
+                    {
+                        network_sender.send(i).unwrap();
                     },
-                    Err(_)=>{
+                    None =>
+                    {
                         ()
                     }
                 }
