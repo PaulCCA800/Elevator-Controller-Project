@@ -1,7 +1,7 @@
 pub mod
 udp_server
 {
-    use std::{fmt::Error, net::UdpSocket};
+    use std::net::UdpSocket;
 
     use crate::message::message::UdpMsg;
 

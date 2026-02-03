@@ -143,38 +143,3 @@ message
     }
 
 }
-
-pub struct
-Msg
-{
-    src : String,
-    sync: u8,
-    data: String
-}
-
-impl 
-Msg
-{
-    pub fn
-    new(src: String, sync: u8, data: String) -> Self
-    {
-        Self
-        {
-            src,
-            sync,
-            data,
-        }
-    }
-
-    pub fn 
-    convert_msg(&self) -> Vec<u8>
-    {
-        let mut msg_u8 = Vec::new();
-        msg_u8.push(self.sync);
-        msg_u8.extend_from_slice(self.src.as_bytes());
-        msg_u8.push(self.sync);
-        msg_u8.extend_from_slice(self.data.as_bytes());
-        msg_u8.push(self.sync);
-        msg_u8
-    }
-}

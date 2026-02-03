@@ -30,11 +30,12 @@ fn main() {
 
                 match network_receiver.try_recv()
                 {
-                    Ok(i)   =>
+                    Ok(i) =>
                     {
                         udp_lock.network_transmit(i);
                     },
-                    Err(_)          => {
+                    Err(_) => 
+                    {
                         ()
                     }
                 }
@@ -69,6 +70,19 @@ fn main() {
             thread::sleep(time::Duration::from_millis(10));
         }
     }));
+
+    // Decision Thread
+    elevator_threads.push(thread::spawn(move || 
+    {
+        loop
+        {  
+            {
+
+            }
+            thread::sleep(time::Duration::from_millis(500));
+        }
+    }
+    ));
 
     for t in elevator_threads
     {
