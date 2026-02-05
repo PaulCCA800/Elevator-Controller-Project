@@ -5,6 +5,7 @@ use std::thread::{self, JoinHandle};
 
 pub mod udpserver;
 pub mod message;
+pub mod hardware;
 
 use crate::message::message::UdpMsg;
 use crate::udpserver::udp_server::Server;

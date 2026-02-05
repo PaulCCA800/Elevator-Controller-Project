@@ -43,18 +43,11 @@ message
     pub struct
     UdpMsg
     {
-        pub identifier  : [u8; 4],
+        identifier  : [u8; 4],
         src         : u8,
         sequence_nr : u16,
         msg_type    : MsgType,
-        data    : Vec<u8>,
-    }
-
-    pub struct
-    InternalMsg
-    {
-        _src         : u8,
-        _data        : Vec<u8>
+        data        : Vec<u8>,
     }
 
     impl
@@ -131,23 +124,87 @@ message
         
     }
 
+
+    pub enum
+    Modules
+    {
+        Decision    = 0,
+        Hardware    = 1,
+        Memory      = 2,
+        Network     = 3,
+        Corrupted   = 99,
+    }
+
+    impl
+    Modules
+    {
+        pub fn
+        from_u8(val: u8) -> Self
+        {
+            match val
+            {
+                0 => Modules::Decision,
+                1 => Modules::Hardware,
+                2 => Modules::Memory,
+                3 => Modules::Network,
+                _ => Modules::Corrupted
+            }
+        }  
+
+        pub fn
+        to_u8(&self) -> u8
+        {
+            match self
+            {
+                Modules::Decision   => 0,
+                Modules::Hardware   => 1,
+                Modules::Memory     => 2,
+                Modules::Network    => 3,
+                _                   => 99,
+            }
+        }
+    }
+
+    pub struct
+    InternalMsg
+    {
+        src         : Modules,
+        data        : Vec<u8>
+    }
+
     impl
     InternalMsg
     {
         pub fn
-        new(_src: u8, _data: Vec<u8>) -> Self
+        new(src: Modules, data: Vec<u8>) -> Self
         {
             Self 
             { 
-                _src, 
-                _data, 
+                src, 
+                data, 
             }
         }
 
         pub fn
-        deserialize_from_udp(&self, _message: UdpMsg) -> () //InternalMsg
+        from_udp(&self, message: UdpMsg) -> Self
         {
-            ()
+            Self
+            {
+                src: Modules::from_u8(message.src),
+                data: message.data
+            }
+        }
+
+        pub fn
+        to_udp(&self, sequence_nr: u16, msg_type: MsgType) -> UdpMsg
+        {
+            UdpMsg{ 
+                identifier  : SYSTEM_IDENTIFIER, 
+                src         : self.src.to_u8(), 
+                sequence_nr , 
+                msg_type    , 
+                data        : self.data.clone()
+            }
         }
     }
 
