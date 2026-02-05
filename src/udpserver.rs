@@ -5,7 +5,9 @@ udp_server
 
     use crate::message::message::UdpMsg;
 
-    const DEFAULT_ADDR: &str = "0.0.0.0:8080";
+    const DEFAULT_ADDR  : &str = "0.0.0.0:8080";
+    const EMPTY_ADDR    : &str = "0.0.0.0:0";
+    const DUMMY_CONNECT : &str = "192.168.0.1:40000";
 
     pub struct
     Server
@@ -43,8 +45,8 @@ udp_server
         fn
         get_local_ip() -> SocketAddr
         {
-            let temp_local_ip = UdpSocket::bind("0.0.0.0:0").unwrap();
-            temp_local_ip.connect("192.168.0.1:40000").unwrap();
+            let temp_local_ip = UdpSocket::bind(EMPTY_ADDR).unwrap();
+            temp_local_ip.connect(DUMMY_CONNECT).unwrap();
             temp_local_ip.local_addr().unwrap()
         }
 
@@ -80,7 +82,11 @@ udp_server
                     
                         let msg = UdpMsg::decode(local_buf_vec, recv_tup.0);
 
-                        self.recv_queue.push(msg);
+                        match msg
+                        {
+                            Some(data) => {self.recv_queue.push(data);},
+                            None => ()
+                        }         
                     }
                 },
                 Err(_) =>

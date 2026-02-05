@@ -1,7 +1,7 @@
 pub mod 
 message
 {
-    const SYSTEM_IDENTIFIER: [u8; 4] = [0xF0, 0x9F, 0x8D, 0x86];
+    pub const SYSTEM_IDENTIFIER: [u8; 4] = [0xF0, 0x9F, 0x8D, 0x86];
 
     pub enum 
     MsgType 
@@ -43,7 +43,7 @@ message
     pub struct
     UdpMsg
     {
-        identifier  : [u8; 4],
+        pub identifier  : [u8; 4],
         src         : u8,
         sequence_nr : u16,
         msg_type    : MsgType,
@@ -96,7 +96,7 @@ message
         }
 
         pub fn
-        decode(buffer: Vec<u8>, byte_count: usize) -> Self //Self 
+        decode(buffer: Vec<u8>, byte_count: usize) -> Option<Self> //Self 
         {
             let local_identifier = [
                 *buffer.get(0).unwrap(),
@@ -105,18 +105,27 @@ message
                 *buffer.get(3).unwrap()
             ];
 
-            Self
+            let data = Self
             {
                 identifier: 
                     local_identifier,
                 src: 
                     *buffer.get(4).unwrap(),
                 sequence_nr: 
-                    u16::from_le_bytes([*buffer.get(5).unwrap(), *buffer.get(6).unwrap()]),
+                    u16::from_be_bytes([*buffer.get(6).unwrap(), *buffer.get(5).unwrap()]),
                 msg_type: 
                     MsgType::from_u8(*buffer.get(7).unwrap()),
                 data:
                     Vec::from(&buffer[8..byte_count])
+            };
+
+            if data.identifier == SYSTEM_IDENTIFIER
+            {
+                Some(data)
+            }
+            else 
+            {
+                None    
             }
         }
         
