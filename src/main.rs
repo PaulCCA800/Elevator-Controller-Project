@@ -34,10 +34,7 @@ fn main() {
                     {
                         udp_lock.network_transmit(i);
                     },
-                    Err(_) => 
-                    {
-                        ()
-                    }
+                    Err(_) => {()}
                 }
             }
             thread::sleep(time::Duration::from_millis(10));
@@ -60,10 +57,7 @@ fn main() {
                     {
                         network_sender.send(i).unwrap();
                     },
-                    None =>
-                    {
-                        ()
-                    }
+                    None => {()}
                 }
 
             }    
