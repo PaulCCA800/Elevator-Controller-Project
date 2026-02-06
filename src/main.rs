@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Mutex, Arc};
 use std::time;
@@ -5,11 +6,22 @@ use std::thread::{self, JoinHandle};
 
 pub mod udpserver;
 pub mod message;
+mod mem;
+mod misc;
 
+use crate::mem::{Matrix, MatrixCmd, Elevator};
 use crate::message::message::UdpMsg;
+use crate::message::message::InternalMsg
+use crate::misc::generate_id;
 use crate::udpserver::udp_server::Server;
 
 fn main() {
+
+    let id: u64 = generate_id();
+
+    let states: HashMap<u64, mem::Elevator> = HashMap::new();
+    let mut state_matrix: mem::Matrix =  Matrix::new(states);
+
     let mut elevator_threads: Vec<JoinHandle<()>> = vec![];
 
     let udp_server: Arc<Mutex<Server>> = Arc::new(Mutex::new(Server::spawn()));
@@ -17,9 +29,18 @@ fn main() {
     let udp_server_tx = udp_server.clone();
     let udp_server_rx = udp_server.clone();
 
-    let (network_sender, _decision_receiver): (Sender<UdpMsg>, Receiver<UdpMsg>) = mpsc::channel();
-    let (decision_sender, network_receiver): (Sender<UdpMsg>, Receiver<UdpMsg>) = mpsc::channel();
+    let (net_to_mem_tx, mem_from_net_rx): 
+    (Sender<UdpMsg>, Receiver<UdpMsg>) = mpsc::channel();
 
+    let (mem_to_net_tx, net_from_mem_rx): 
+    (Sender<UdpMsg>, Receiver<UdpMsg>) = mpsc::channel();
+
+    let (har_to_mem_tx, mem_from_har_rx): 
+    (Sender<MatrixCmd>, Receiver<MatrixCmd>) = mpsc::channel();
+
+    let (mem_to_har_tx, har_from_mem_rx): 
+    (Sender<Elevator>, Receiver<Elevator>) = mpsc::channel();
+    
     // Network Tx Thread
     elevator_threads.push(thread::spawn(move ||
     {
@@ -28,9 +49,9 @@ fn main() {
             {
                 let udp_lock = udp_server_tx.lock().unwrap();
 
-                match network_receiver.try_recv()
+                match mem_from_net_rx.try_recv()
                 {
-                    Ok(i) =>
+                    Ok(i) => 
                     {
                         udp_lock.network_transmit(i);
                     },
@@ -58,7 +79,7 @@ fn main() {
                 {
                     Some(i) => 
                     {
-                        network_sender.send(i).unwrap();
+                        net_to_mem_tx.send(i).unwrap();
                     },
                     None =>
                     {
@@ -71,20 +92,22 @@ fn main() {
         }
     }));
 
-    // Decision Thread
-    elevator_threads.push(thread::spawn(move || 
-    {
-        loop
-        {  
-            {
-                let msg_data = "Decision Channel Test";
-                let temp_msg = UdpMsg::new(2, 12345, message::message::MsgType::Broadcast, msg_data.as_bytes().to_vec());
-                decision_sender.send(temp_msg).unwrap();
+    // Memory Thread
+    elevator_threads.push(thread::spawn(move || {
+        loop{  
+            while let Ok(c) = mem_from_har_rx.try_recv() {
+                state_matrix.edit_matrix(c);
             }
+
+            let this_elevator: Elevator = state_matrix.get(id).clone();
+            match mem_to_har_tx.send(this_elevator){
+                Ok(()) => println!("Successful transmit from mem to hardware, id: {}", id),
+                Err(_) => println!("Failed to transmit from mem to hardware, id: {}", id)
+            }
+
             thread::sleep(time::Duration::from_millis(500));
         }
-    }
-    ));
+    }));
 
     for t in elevator_threads
     {

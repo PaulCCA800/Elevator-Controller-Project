@@ -1,21 +1,22 @@
-use std::{collections::HashMap, fmt::format, option}
+use std::{collections::HashMap}
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 enum Direction {
     Up,
     Down,
-    Stop,
 }
+
 #[derive(Clone)]
-struct Order {
-    id: u8,
+pub struct Order {
+    id: u64,
     floor: u8,
     cab: bool,
     direction: Direction,
 }
 
-struct Elevator {
-    id: u8,
+#[derive(Clone)]
+pub struct Elevator {
+    id: u64,
     current_floor: u8,
     direction: Direction,
     obstruction: bool,
@@ -24,12 +25,21 @@ struct Elevator {
     hall_orders: Vec<Order>,
 }
 
-struct Matrix {
-    matrix: HashMap <u8, Elevator> 
+pub struct Matrix {
+    matrix: HashMap <u64, Elevator>
+}
+
+pub enum MatrixCmd {
+    set_floor {id: u64, floor: u8},
+    set_direction {id: u64, dir: Direction},
+    set_obstruction {id: u64, obs: bool},
+    set_stop {id: u64, stop: bool},
+    set_cab_orders {id: u64, orders: Vec<Order>},
+    set_hall_orders {id: u64, orders: Vec<Order>}
 }
 
 impl Order {
-    pub fn new(id: u8, floor: u8, cab: bool, direction: Direction) -> Self{
+    pub fn new(id: u64, floor: u8, cab: bool, direction: Direction) -> Self{
         Self{
             id,
             floor,
@@ -40,7 +50,7 @@ impl Order {
 }
 
 impl Elevator{
-    pub fn new(id: u8, current_floor: u8, direction: Direction, 
+    pub fn new(id: u64, current_floor: u8, direction: Direction, 
                obstruction: bool, stop: bool, cab_orders: Vec<Order>, 
                hall_orders: Vec<Order>) -> Self{
         Self{
@@ -52,6 +62,14 @@ impl Elevator{
             cab_orders,
             hall_orders,
         }
+    }
+
+    pub fn get_hall_orders(&self) -> &Vec<Order>{
+        &self.hall_orders
+    }
+
+    pub fn get_cab_orders(&self) -> &Vec<Order>{
+        &self.cab_orders
     }
 
     fn set_current_floor(&mut self, floor: u8) {
@@ -80,51 +98,67 @@ impl Elevator{
 }
 
 impl Matrix {
-    pub fn new(matrix: HashMap <u8, Elevator>) -> Self{
+    pub fn new(matrix: HashMap <u64, Elevator>) -> Self{
         Self {matrix}
     }
 
-    fn get(&self, id: u8) -> &Elevator {
+    pub fn get(&self, id: u64) -> &Elevator {
         self.matrix.get(id).expect(&format!("get error: no elevator found at {id}.", id))
     }
 
-    fn get_mut(&mut self, id: u8) -> &mut Elevator {
+    pub fn get_mut(&mut self, id: u64) -> &mut Elevator {
         self.matrix.get_mut(id).expect(&format!("get_mut error: no elevator found at {id}.", id))
     }
 
-    fn write_elev_current_floor(&mut self, id: u8, floor: u8) {
+    pub fn write_elev_current_floor(&mut self, id: u64, floor: u8) {
         self.get_mut(id).set_current_floor(floor);
     }
 
-    fn set_elev_direction(&mut self, id: u8, direction: &Direction) {
+    pub fn set_elev_direction(&mut self, id: u64, direction: &Direction) {
         self.get_mut(id).set_direction(direction);
     }
 
-    fn set_elev_obstruction(&mut self, id: u8, obstruction: &bool) {
+    pub fn set_elev_obstruction(&mut self, id: u64, obstruction: &bool) {
         self.get_mut(id).set_obstruction(obstruction);
     }
 
-    fn set_elev_stop(&mut self, id: u8, stop: &bool) {
+    pub fn set_elev_stop(&mut self, id: u64, stop: &bool) {
         self.get_mut(id).set_stop(stop);
     }
 
-    fn set_elev_cab_orders(&mut self, id: u8, orders: &[Order]) {
+    pub fn set_elev_cab_orders(&mut self, id: u64, orders: &[Order]) {
         self.get_mut(id).set_cab_orders(orders);
     }
 
-    fn set_elev_hall_orders(&mut self, id: u8, orders: &[Order]) {
+    pub fn set_elev_hall_orders(&mut self, id: u64, orders: &[Order]) {
         self.get_mut(id).set_hall_orders(orders);
+    }
+
+    pub fn edit_matrix(&mut self, cmd: MatrixCmd) {
+        match cmd { 
+            MatrixCmd::set_floor {id, floor} 
+            => self.write_elev_current_floor(id, floor),
+
+            MatrixCmd::set_direction {id, dir} 
+            => self.set_elev_direction(id, &dir),
+
+            MatrixCmd::set_obstruction {id, obs} 
+            => self.set_elev_obstruction(id, &obs),
+
+            MatrixCmd::set_stop {id, stop} 
+            => self.set_elev_stop(id, &stop),
+
+            MatrixCmd::set_cab_orders {id, orders} 
+            => self.set_elev_cab_orders(id, &orders.as_slice()),
+
+            MatrixCmd::set_hall_orders {id, orders} 
+            => self.set_elev_hall_orders(id, &orders.as_slice()),
+        }
     }
 
 }
 
-fn send_to_channel() {
 
-}
-
-fn recv_from_channel() {
-
-}
 
 
 

@@ -1,5 +1,6 @@
-pub mod 
-message
+use crate::mem::Order;
+
+pub mod message
 {
     const SYSTEM_IDENTIFIER: [u8; 4] = [0xF0, 0x9F, 0x8D, 0x86];
 
@@ -54,7 +55,7 @@ message
     InternalMsg
     {
         _src         : u8,
-        _data        : Vec<u8>
+        _data        : Vec<u8>,
     }
 
     impl
@@ -126,7 +127,7 @@ message
     InternalMsg
     {
         pub fn
-        new(_src: u8, _data: Vec<u8>) -> Self
+        new(_src: u8, _data: Vec<u8>, _command: String) -> Self
         {
             Self 
             { 
