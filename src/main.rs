@@ -35,10 +35,10 @@ fn main() {
     let (mem_to_net_tx, net_from_mem_rx): 
     (Sender<UdpMsg>, Receiver<UdpMsg>) = mpsc::channel();
 
-    let (har_to_mem_tx, mem_from_har_rx): 
+    let (hw_to_mem_tx, mem_from_hw_rx): 
     (Sender<MatrixCmd>, Receiver<MatrixCmd>) = mpsc::channel();
 
-    let (mem_to_har_tx, har_from_mem_rx): 
+    let (mem_to_hw_tx, hw_from_mem_rx): 
     (Sender<Elevator>, Receiver<Elevator>) = mpsc::channel();
     
     // Network Tx Thread
@@ -95,14 +95,14 @@ fn main() {
     // Memory Thread
     elevator_threads.push(thread::spawn(move || {
         loop{  
-            while let Ok(c) = mem_from_har_rx.try_recv() {
+            while let Ok(c) = mem_from_hw_rx.try_recv() {
                 state_matrix.edit_matrix(c);
             }
 
             let this_elevator: Elevator = state_matrix.get(id).clone();
-            match mem_to_har_tx.send(this_elevator){
-                Ok(()) => println!("Successful transmit from mem to hardware, id: {}", id),
-                Err(_) => println!("Failed to transmit from mem to hardware, id: {}", id)
+            match mem_to_hw_tx.send(this_elevator){
+                Ok(()) => println!("Successful transmit from memory to hardware, elevator: {}", id),
+                Err(_) => println!("Failed to transmit from memory to hardware, elevator: {}", id)
             }
 
             thread::sleep(time::Duration::from_millis(500));
