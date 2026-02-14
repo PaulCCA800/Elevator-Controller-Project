@@ -1,32 +1,21 @@
 pub mod
 hardware
 {
-    use std::sync::mpsc::{self, Receiver, Sender};
+    use std::sync::mpsc::{Receiver, Sender};
     use std::thread::{self};
     use std::time::{self, Duration};
     use driver_rust::elevio;
     use crossbeam_channel as cbc;
     use driver_rust::elevio::poll::CallButton;
 
-    use crate::message::message::InternalMsg;
+    use crate::message::message::{ElevatorUpdateMsg, ElevatorCommand};
 
     const LOCAL_ADDR: &str = "localhost:3030";
     const FLOOR_COUNT: u8 = 4;
     const POOL_DUR: Duration = Duration::from_millis(10);
-
-    const DIR_UP    : bool = true;
-    const DIR_DOWN  : bool = false;
-
-    struct
-    ElevatorData
-    {
-        target_floor: u8,
-        direction: bool,
-        stop_at: [u8; 4],
-    }
     
     pub fn
-    hardware_loop(recv: Receiver<InternalMsg>, send: Sender<InternalMsg>)
+    hardware_loop(send: Sender<ElevatorUpdateMsg>, recv: Receiver<ElevatorCommand>)
     {
         let (call_button_tx, call_button_rx)    = cbc::unbounded::<elevio::poll::CallButton>(); 
         let (floor_sensor_tx, floor_sensor_rx)                  = cbc::unbounded::<u8>(); 
@@ -34,7 +23,6 @@ hardware
         let (obstruction_tx, obstruction_rx)                = cbc::unbounded::<bool>(); 
 
         let elevator = elevio::elev::Elevator::init(LOCAL_ADDR, FLOOR_COUNT).unwrap();
-        let data = ElevatorData{target_floor: 0, direction: DIR_DOWN, stop_at: [0; 4]};
 
         {
             let elevator_call = elevator.clone();
@@ -56,65 +44,93 @@ hardware
             thread::spawn(move || elevio::poll::obstruction(elevator_obstruction, obstruction_tx, POOL_DUR));
         }
 
-
-        elevator.motor_direction(elevio::elev::DIRN_UP);
-
+        thread::spawn(move || 
+        {
         loop
         {
             cbc::select!{
                 recv(call_button_rx) -> o => {
-                    call_button_handler(o.unwrap(), &elevator);
+                    send.send(call_button_handler(o.unwrap())).unwrap();
                 },
                 recv(floor_sensor_rx) -> o => {
-                    floor_sensor_handler(o.unwrap(), &elevator);
+                    send.send(floor_sensor_handler(o.unwrap())).unwrap();
                 },
                 recv(stop_button_rx) -> o => {
-                    stop_button_handler(o.unwrap(), &elevator);
+                    send.send(stop_button_handler(o.unwrap())).unwrap();
                 },
                 recv(obstruction_rx) -> o => {
-                    obstruction_handler(o.unwrap(), &elevator);
+                    send.send(obstruction_handler(o.unwrap())).unwrap();
                 }
             }
 
-            
-
             thread::sleep(time::Duration::from_millis(100));
-        }
-    }
+        }});
 
-    fn
-    call_button_handler(cb: CallButton, elevator: &elevio::elev::Elevator)
-    {
-        println!("{:?}", cb);
-    }
-
-    fn
-    floor_sensor_handler(fs: u8, elevator: &elevio::elev::Elevator)
-    {
-        println!("At floor: {:?}.", fs);
-        if fs == 3
+        thread::spawn(move || 
         {
-            elevator.motor_direction(elevio::elev::DIRN_DOWN);
-        }
-        else if fs == 0
-        {
-            elevator.motor_direction(elevio::elev::DIRN_UP);
-        }
+            loop
+            {
+                while let Ok(cmd) = recv.try_recv() {
+                    elevator_command_execute(&elevator, cmd);           
+                }
+                thread::sleep(time::Duration::from_millis(10));
+            }            
+        });
     }
 
     fn
-    stop_button_handler(sb: bool, elevator: &elevio::elev::Elevator)
+    call_button_handler(cb: CallButton) -> ElevatorUpdateMsg
     {
-        if sb == true
-        {
-            elevator.motor_direction(elevio::elev::DIRN_STOP);
-        }
-        println!("Stop Button {:?}", sb);
+        ElevatorUpdateMsg::CallButton(cb)
     }
 
     fn
-    obstruction_handler(ob: bool, elevator: &elevio::elev::Elevator)
+    floor_sensor_handler(fs: u8) -> ElevatorUpdateMsg
     {
-        println!("Obstruction {:?}", ob);
+        ElevatorUpdateMsg::FloorSensor(fs)
     }
+
+    fn
+    stop_button_handler(sb: bool) -> ElevatorUpdateMsg
+    {
+        ElevatorUpdateMsg::StopButton(sb)
+    }
+
+    fn
+    obstruction_handler(ob: bool) -> ElevatorUpdateMsg
+    {
+        ElevatorUpdateMsg::Obstruction(ob)
+    }
+
+    fn
+    elevator_command_execute(elevator: &elevio::elev::Elevator, command: ElevatorCommand)
+    {
+        match command
+        {
+            ElevatorCommand::MotorDirectionSet(dir)   => 
+            {
+                elevator.motor_direction(dir);
+            },
+            ElevatorCommand::CallButtonLightSet((floor, call, status))  => 
+            {
+                elevator.call_button_light(floor, call, status);
+            },
+            ElevatorCommand::DoorLightSet(status)        => 
+            {
+                elevator.door_light(status);
+            },
+            ElevatorCommand::StopLightSet(status)        => 
+            {
+                elevator.stop_button_light(status);
+            },
+            ElevatorCommand::FloorIndicator(floor)      => 
+            {
+                elevator.floor_indicator(floor);
+            }
+        }
+
+    }
+
+
+
 }

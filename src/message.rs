@@ -210,8 +210,9 @@ message
         }
     }
 
+    #[derive(Debug)]
     pub enum
-    ElevatorMsgType
+    ElevatorUpdateMsg
     {
         CallButton  (CallButton),
         FloorSensor (u8),
@@ -219,10 +220,16 @@ message
         Obstruction (bool)
     }
 
-    pub struct
-    ElevatorMsg
-    {
-        src: ElevatorMsgType
-    }
+    pub enum
+    ElevatorCommand
+    {   
+        // Use elevio::elev::DIRN_DOWN, elevio::elev::DIRN_DOWN and elevio::elev::DIRN_DOWN 
+        MotorDirectionSet(u8),
 
+        // Constructed with (Floor, Call, on/off)
+        CallButtonLightSet((u8, u8, bool)),
+        DoorLightSet(bool),
+        StopLightSet(bool),
+        FloorIndicator(u8),
+    }
 }

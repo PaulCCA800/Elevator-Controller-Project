@@ -7,7 +7,7 @@ mod udpserver;
 mod message;
 mod hardware;
 
-use crate::message::message::{InternalMsg, UdpMsg};
+use crate::message::message::{ElevatorUpdateMsg, UdpMsg, ElevatorCommand};
 use crate::udpserver::udp_server::Server;
 
 fn main() {
@@ -19,10 +19,10 @@ fn main() {
     let udp_server_rx = udp_server.clone();
 
     let (network_sender, _decision_receiver): (Sender<UdpMsg>, Receiver<UdpMsg>) = mpsc::channel();
-    let (_decision_sender, network_receiver): (Sender<UdpMsg>, Receiver<UdpMsg>) = mpsc::channel();
+    let (_decision_sender_to_net, network_receiver): (Sender<UdpMsg>, Receiver<UdpMsg>) = mpsc::channel();
 
-    let (_decision_sender, elevator_reciever): (Sender<InternalMsg>, Receiver<InternalMsg>) = mpsc::channel();
-    let (elevator_data_sender, _decision_elevator_receiver): (Sender<InternalMsg>, Receiver<InternalMsg>) = mpsc::channel();
+    let (decision_sender_elev_command, elevator_reciever): (Sender<ElevatorCommand>, Receiver<ElevatorCommand>) = mpsc::channel();
+    let (elevator_data_sender, _decision_elevator_receiver): (Sender<ElevatorUpdateMsg>, Receiver<ElevatorUpdateMsg>) = mpsc::channel();
 
     // Network Tx Thread
     elevator_threads.push(thread::spawn(move ||
@@ -72,7 +72,27 @@ fn main() {
     // Hardware Thread
     elevator_threads.push(thread::spawn(move ||
     {
-        hardware::hardware::hardware_loop(elevator_reciever, elevator_data_sender);
+        hardware::hardware::hardware_loop(elevator_data_sender, elevator_reciever);
+    }));
+
+
+    // Testing Thread
+    elevator_threads.push(thread::spawn(move || 
+    {
+        loop
+        {
+            let e = _decision_elevator_receiver.try_recv();
+            match e
+            {
+                Ok(a) => println!("{:?}", a),
+                Err(_) => ()
+            }
+
+            
+            decision_sender_elev_command.send(ElevatorCommand::StopLightSet(true)).unwrap();
+            thread::sleep(time::Duration::from_millis(100));
+            decision_sender_elev_command.send(ElevatorCommand::StopLightSet(false)).unwrap();
+        }
     }));
 
     for t in elevator_threads
