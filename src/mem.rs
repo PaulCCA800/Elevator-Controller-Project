@@ -7,12 +7,27 @@ enum Direction {
     Down,
 }
 
+#[derive(Copy, Clone, Eq, PartialEq)]
+enum Status {
+    Completed, 
+    NotCompleted,
+}
+
+#[derive(Copy, Clone, Eq, PartialEq)]
+enum Availability {
+    Taken,
+    Available,
+}
+
 #[derive(Clone)]
 pub struct Order {
     id: u64,
     floor: u8,
     cab: bool,
     direction: Direction,
+    status: Status,
+    availability: Availability,
+    assigned_to: u64, 
 }
 
 #[derive(Clone)]
@@ -24,7 +39,7 @@ pub struct Elevator {
     stop: bool,
     cab_orders: VecDeque<Order>,
     hall_orders: VecDeque<Order>,
-    assigned_orders: VecDeque<Order>,
+    incarnation: u8, 
 }
 
 pub struct Matrix {
@@ -43,17 +58,21 @@ pub enum MatrixCmd {
     remove_cab_order {id: u64},
     add_hall_order{id: u64, order: Order},
     remove_hall_order {id: u64},
-    add_assigned_order{id: u64, order: Order},
-    remove_assigned_order {id: u64},
+    set_incarnation {id: u64, incarnation: u8},
+    increment_incarnation {id: u64}
 }
 
 impl Order {
-    pub fn new(id: u64, floor: u8, cab: bool, direction: Direction) -> Self{
+    pub fn new(id: u64, floor: u8, cab: bool, direction: Direction, 
+               status: Status, availability: Availability, assigned_to: u64) -> Self{
         Self{
             id,
             floor,
             cab,
             direction,
+            status,
+            availability,
+            assigned_to,
         }
     }
 }
@@ -61,7 +80,7 @@ impl Order {
 impl Elevator{
     pub fn new(id: u64, current_floor: u8, direction: Direction, 
                obstruction: bool, stop: bool, cab_orders: VecDeque<Order>, 
-               hall_orders: VecDeque<Order>, assigned_orders: VecDeque<Order>) -> Self{
+               hall_orders: VecDeque<Order>, incarnation: u8) -> Self{
         Self{
             id,
             current_floor,
@@ -70,7 +89,7 @@ impl Elevator{
             stop,
             cab_orders,
             hall_orders,
-            assigned_orders,
+            incarnation,
         }
     }
 
@@ -106,10 +125,6 @@ impl Elevator{
         self.hall_orders = orders;
     }
 
-    pub fn set_assigned_orders(&mut self, orders: VecDeque<Order>) {
-        self.assigned_orders = orders;
-    }
-
     pub fn add_cab_order(&mut self, order: Order) {
         self.cab_orders.push_back(order);
     }
@@ -124,16 +139,8 @@ impl Elevator{
 
     pub fn remove_hall_order(&mut self){
         self.hall_orders.pop_front();
-    }
-
-    pub fn add_assigned_order(&mut self, order: Order) {
-        self.assigned_orders.push_back(order);
-    }
-
-    pub fn remove_assigned_order(&mut self) {
-        self.assigned_orders.pop_front();
-    }
-
+    }    
+    
 }
 
 impl Matrix {
@@ -193,14 +200,6 @@ impl Matrix {
         self.get_mut(id).remove_hall_order();
     }
 
-    pub fn add_elev_assigned_order(&mut self, id: u64, order: Order) {
-        self.get_mut(id).add_assigned_order(order);
-    }
-
-    pub fn remove_elev_assigned_order(&mut self, id: u64) {
-        self.get_mut(id).remove_assigned_order();
-    }
-
     pub fn edit_matrix(&mut self, cmd: MatrixCmd) {
         match cmd { 
             MatrixCmd::set_floor {id, floor} 
@@ -236,11 +235,7 @@ impl Matrix {
             MatrixCmd::remove_hall_order {id}
             =>self.remove_elev_hall_order(id),
 
-            MatrixCmd::add_assigned_order {id, order}
-            =>self.add_elev_assigned_order(id, order),
-
-            MatrixCmd::remove_assigned_order {id}
-            =>self.remove_elev_assigned_order(id),
+           
 
         }
     }
