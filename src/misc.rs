@@ -1,6 +1,9 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::fs;
+use std::time::Duration;
+
+pub const DELAY_DUR: Duration = Duration::from_millis(10);
 
 pub fn generate_id () -> u64 {
     let id_string: String = fs::read_to_string("/etc/machine-id").expect("Could not find machine-id.");
