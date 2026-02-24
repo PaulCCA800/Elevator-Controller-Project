@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{self, Sender, Receiver};
 use std::thread::{self, JoinHandle};
@@ -6,10 +7,12 @@ mod message;
 mod hardware;
 mod udpserver;
 mod misc;
+mod mem;
 
+use crate::mem::{Elevator, MatrixCmd};
 use crate::message::message::{ElevatorUpdateMsg, ElevatorCommand, UdpMsg};
 use crate::udpserver::udp_server::Server;
-use crate::misc::{DELAY_DUR};
+use crate::misc::{DELAY_DUR, generate_id};
 
 fn main()
 {
@@ -67,6 +70,37 @@ fn main()
     elevator_tasks.push(thread::spawn(move || 
     {
         hardware::hardware::hardware_loop(hardware_update_src, hardware_command_recv);
+    }));
+
+    // Memory Section
+    let states: HashMap<u64, mem::Elevator> = HashMap::new();
+    let mut state_matrix: mem::Matrix = mem::Matrix::new(states);
+
+    let (_, mem_placeholder_recv):
+    (Sender<MatrixCmd>, Receiver<MatrixCmd>) = mpsc::channel();
+
+    let (mem_placeholder_src, _):
+    (Sender<Elevator>, Receiver<Elevator>) = mpsc::channel();
+
+    let id = generate_id();
+
+    elevator_tasks.push(thread::spawn(move || 
+    {
+        loop{
+            {
+                while let Ok(command) = mem_placeholder_recv.try_recv(){
+                    state_matrix.edit_matrix(command);
+                }
+
+                let elevator_data: Elevator = state_matrix.get(id).clone();
+                match mem_placeholder_src.send(elevator_data)
+                {
+                    Ok(_)   => println!("Transmit Successful, elevator: {id}."),
+                    Err(_)  => println!("Transmit Failed, elevator {id}."),
+                }
+            }
+            thread::sleep(DELAY_DUR);
+        }
     }));
 
     for task in elevator_tasks

@@ -17,14 +17,14 @@ pub struct Order {
 
 #[derive(Clone)]
 pub struct Elevator {
-    id: u64,
-    current_floor: u8,
-    direction: Direction,
-    obstruction: bool,
-    stop: bool,
-    cab_orders: VecDeque<Order>,
-    hall_orders: VecDeque<Order>,
-    assigned_orders: VecDeque<Order>,
+    id              : u64,
+    current_floor   : u8,
+    direction       : Direction,
+    obstruction     : bool,
+    stop            : bool,
+    cab_orders      : VecDeque<Order>,
+    hall_orders     : VecDeque<Order>,
+    assigned_orders : VecDeque<Order>,
 }
 
 pub struct Matrix {
@@ -32,19 +32,19 @@ pub struct Matrix {
 }
 
 pub enum MatrixCmd {
-    set_floor {id: u64, floor: u8},
-    set_direction {id: u64, dir: Direction},
-    set_obstruction {id: u64, obs: bool},
-    set_stop {id: u64, stop: bool},
-    set_cab_orders {id: u64, orders: VecDeque<Order>},
-    set_hall_orders {id: u64, orders: VecDeque<Order>},
-    set_assigned_orders{id: u64, orders: VecDeque<Order>},
-    add_cab_order{id: u64, order: Order},
-    remove_cab_order {id: u64},
-    add_hall_order{id: u64, order: Order},
-    remove_hall_order {id: u64},
-    add_assigned_order{id: u64, order: Order},
-    remove_assigned_order {id: u64},
+    set_floor               {id: u64, floor: u8},
+    set_direction           {id: u64, dir: Direction},
+    set_obstruction         {id: u64, obs: bool},
+    set_stop                {id: u64, stop: bool},
+    set_cab_orders          {id: u64, orders: VecDeque<Order>},
+    set_hall_orders         {id: u64, orders: VecDeque<Order>},
+    set_assigned_orders     {id: u64, orders: VecDeque<Order>},
+    add_cab_order           {id: u64, order: Order},
+    remove_cab_order        {id: u64},
+    add_hall_order          {id: u64, order: Order},
+    remove_hall_order       {id: u64},
+    add_assigned_order      {id: u64, order: Order},
+    remove_assigned_order   {id: u64},
 }
 
 impl Order {
