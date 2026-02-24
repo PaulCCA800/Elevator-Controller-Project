@@ -10,9 +10,9 @@ hardware
 
     use crate::message::message::{ElevatorUpdateMsg, ElevatorCommand};
 
-    const LOCAL_ADDR: &str = "localhost:15657";
-    const FLOOR_COUNT: u8 = 4;
-    const POOL_DUR: Duration = Duration::from_millis(10);
+    const LOCAL_ADDR    : &str = "localhost:15657";
+    const FLOOR_COUNT   : u8 = 4;
+    const POOL_DUR      : Duration = Duration::from_millis(10);
     
     pub fn
     hardware_loop(send: Sender<ElevatorUpdateMsg>, recv: Receiver<ElevatorCommand>)
@@ -128,7 +128,6 @@ hardware
                 elevator.floor_indicator(floor);
             }
         }
-
     }
 
 

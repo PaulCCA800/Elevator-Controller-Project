@@ -1,5 +1,3 @@
-use crate::mem::Order;
-
 pub mod message
 {
     use driver_rust::elevio::poll::CallButton;
