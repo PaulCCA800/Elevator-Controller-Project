@@ -1,16 +1,26 @@
+use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Mutex, Arc};
 use std::time::{self};
 use std::thread::{self, JoinHandle};
 
+use crate::message::message::{ElevatorUpdateMsg, UdpMsg, ElevatorCommand};
 mod udpserver;
 mod message;
-mod hardware;
+mod mem;
+mod misc;
 
-use crate::message::message::{ElevatorUpdateMsg, UdpMsg, ElevatorCommand};
+use crate::mem::{Matrix, MatrixCmd, Elevator};
+use crate::misc::generate_id;
 use crate::udpserver::udp_server::Server;
 
 fn main() {
+
+    let id: u64 = generate_id();
+
+    let states: HashMap<u64, mem::Elevator> = HashMap::new();
+    let mut state_matrix: mem::Matrix =  Matrix::new(states);
+
     let mut elevator_threads: Vec<JoinHandle<()>> = vec![];
 
     let udp_server: Arc<Mutex<Server>> = Arc::new(Mutex::new(Server::spawn()));
@@ -18,12 +28,30 @@ fn main() {
     let udp_server_tx = udp_server.clone();
     let udp_server_rx = udp_server.clone();
 
-    let (network_sender, _decision_receiver): (Sender<UdpMsg>, Receiver<UdpMsg>) = mpsc::channel();
-    let (_decision_sender_to_net, network_receiver): (Sender<UdpMsg>, Receiver<UdpMsg>) = mpsc::channel();
+    let (network_sender, _decision_receiver): 
+    (Sender<UdpMsg>, Receiver<UdpMsg>) = mpsc::channel();
+    
+    let (_decision_sender_to_net, network_receiver): 
+    (Sender<UdpMsg>, Receiver<UdpMsg>) = mpsc::channel();
 
-    let (decision_sender_elev_command, elevator_reciever): (Sender<ElevatorCommand>, Receiver<ElevatorCommand>) = mpsc::channel();
-    let (elevator_data_sender, _decision_elevator_receiver): (Sender<ElevatorUpdateMsg>, Receiver<ElevatorUpdateMsg>) = mpsc::channel();
+    let (decision_sender_elev_command, elevator_reciever): 
+    (Sender<ElevatorCommand>, Receiver<ElevatorCommand>) = mpsc::channel();
+    
+    let (elevator_data_sender, _decision_elevator_receiver):
+    (Sender<ElevatorUpdateMsg>, Receiver<ElevatorUpdateMsg>) = mpsc::channel();
+    
+    let (net_to_mem_tx, mem_from_net_rx): 
+    (Sender<UdpMsg>, Receiver<UdpMsg>) = mpsc::channel();
 
+    let (mem_to_net_tx, net_from_mem_rx): 
+    (Sender<UdpMsg>, Receiver<UdpMsg>) = mpsc::channel();
+
+    let (hw_to_mem_tx, mem_from_hw_rx): 
+    (Sender<MatrixCmd>, Receiver<MatrixCmd>) = mpsc::channel();
+
+    let (mem_to_hw_tx, hw_from_mem_rx): 
+    (Sender<Elevator>, Receiver<Elevator>) = mpsc::channel();
+    
     // Network Tx Thread
     elevator_threads.push(thread::spawn(move ||
     {
@@ -32,9 +60,9 @@ fn main() {
             {
                 let udp_lock = udp_server_tx.lock().unwrap();
 
-                match network_receiver.try_recv()
+                match mem_from_net_rx.try_recv()
                 {
-                    Ok(i) =>
+                    Ok(i) => 
                     {
                         udp_lock.network_transmit(i);
                     },
@@ -59,7 +87,7 @@ fn main() {
                 {
                     Some(i) => 
                     {
-                        network_sender.send(i).unwrap();
+                        net_to_mem_tx.send(i).unwrap();
                     },
                     None => {()}
                 }
@@ -92,6 +120,23 @@ fn main() {
             decision_sender_elev_command.send(ElevatorCommand::StopLightSet(true)).unwrap();
             thread::sleep(time::Duration::from_millis(100));
             decision_sender_elev_command.send(ElevatorCommand::StopLightSet(false)).unwrap();
+        }
+    }));
+    
+    // Memory Thread
+    elevator_threads.push(thread::spawn(move || {
+        loop{  
+            while let Ok(c) = mem_from_hw_rx.try_recv() {
+                state_matrix.edit_matrix(c);
+            }
+
+            let this_elevator: Elevator = state_matrix.get(id).clone();
+            match mem_to_hw_tx.send(this_elevator){
+                Ok(()) => println!("Successful transmit from memory to hardware, elevator: {}", id),
+                Err(_) => println!("Failed to transmit from memory to hardware, elevator: {}", id)
+            }
+
+            thread::sleep(time::Duration::from_millis(500));
         }
     }));
 
