@@ -10,7 +10,7 @@ hardware
 
     use crate::message::message::{ElevatorUpdateMsg, ElevatorCommand};
 
-    const LOCAL_ADDR: &str = "localhost:3030";
+    const LOCAL_ADDR: &str = "localhost:15657";
     const FLOOR_COUNT: u8 = 4;
     const POOL_DUR: Duration = Duration::from_millis(10);
     
