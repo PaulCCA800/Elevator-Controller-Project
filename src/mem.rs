@@ -165,9 +165,10 @@ impl WorldView {
     pub fn new(elevatorStatus: HashMap <u64, Elevator>, orderQueue: HashMap<u64, Order>, 
                writeCounter: HashMap<u64, u8>) -> Self{
         
-        Self{elevatorStatus,
-              orderQueue,
-              writeCounter,
+        Self{
+            elevatorStatus,
+            orderQueue,
+            writeCounter,
             }
     }
 
