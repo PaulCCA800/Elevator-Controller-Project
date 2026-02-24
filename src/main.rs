@@ -1,17 +1,16 @@
 use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Mutex, Arc};
-use std::time;
+use std::time::{self};
 use std::thread::{self, JoinHandle};
 
-pub mod udpserver;
-pub mod message;
+use crate::message::message::{ElevatorUpdateMsg, UdpMsg, ElevatorCommand};
+mod udpserver;
+mod message;
 mod mem;
 mod misc;
 
 use crate::mem::{Matrix, MatrixCmd, Elevator};
-use crate::message::message::UdpMsg;
-use crate::message::message::InternalMsg
 use crate::misc::generate_id;
 use crate::udpserver::udp_server::Server;
 
@@ -29,6 +28,18 @@ fn main() {
     let udp_server_tx = udp_server.clone();
     let udp_server_rx = udp_server.clone();
 
+    let (network_sender, _decision_receiver): 
+    (Sender<UdpMsg>, Receiver<UdpMsg>) = mpsc::channel();
+    
+    let (_decision_sender_to_net, network_receiver): 
+    (Sender<UdpMsg>, Receiver<UdpMsg>) = mpsc::channel();
+
+    let (decision_sender_elev_command, elevator_reciever): 
+    (Sender<ElevatorCommand>, Receiver<ElevatorCommand>) = mpsc::channel();
+    
+    let (elevator_data_sender, _decision_elevator_receiver):
+    (Sender<ElevatorUpdateMsg>, Receiver<ElevatorUpdateMsg>) = mpsc::channel();
+    
     let (net_to_mem_tx, mem_from_net_rx): 
     (Sender<UdpMsg>, Receiver<UdpMsg>) = mpsc::channel();
 
@@ -55,10 +66,7 @@ fn main() {
                     {
                         udp_lock.network_transmit(i);
                     },
-                    Err(_) => 
-                    {
-                        ()
-                    }
+                    Err(_) => {()}
                 }
             }
             thread::sleep(time::Duration::from_millis(10));
@@ -81,10 +89,7 @@ fn main() {
                     {
                         net_to_mem_tx.send(i).unwrap();
                     },
-                    None =>
-                    {
-                        ()
-                    }
+                    None => {()}
                 }
 
             }    
@@ -92,6 +97,32 @@ fn main() {
         }
     }));
 
+    // Hardware Thread
+    elevator_threads.push(thread::spawn(move ||
+    {
+        hardware::hardware::hardware_loop(elevator_data_sender, elevator_reciever);
+    }));
+
+
+    // Testing Thread
+    elevator_threads.push(thread::spawn(move || 
+    {
+        loop
+        {
+            let e = _decision_elevator_receiver.try_recv();
+            match e
+            {
+                Ok(a) => println!("{:?}", a),
+                Err(_) => ()
+            }
+
+            
+            decision_sender_elev_command.send(ElevatorCommand::StopLightSet(true)).unwrap();
+            thread::sleep(time::Duration::from_millis(100));
+            decision_sender_elev_command.send(ElevatorCommand::StopLightSet(false)).unwrap();
+        }
+    }));
+    
     // Memory Thread
     elevator_threads.push(thread::spawn(move || {
         loop{  

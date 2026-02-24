@@ -2,7 +2,9 @@ use crate::mem::Order;
 
 pub mod message
 {
-    const SYSTEM_IDENTIFIER: [u8; 4] = [0xF0, 0x9F, 0x8D, 0x86];
+    use driver_rust::elevio::poll::CallButton;
+
+    pub const SYSTEM_IDENTIFIER: [u8; 4] = [0xF0, 0x9F, 0x8D, 0x86];
 
     pub enum 
     MsgType 
@@ -51,13 +53,6 @@ pub mod message
         data    : Vec<u8>,
     }
 
-    pub struct
-    InternalMsg
-    {
-        _src         : u8,
-        _data        : Vec<u8>,
-    }
-
     impl
     UdpMsg
     {
@@ -97,7 +92,7 @@ pub mod message
         }
 
         pub fn
-        decode(buffer: Vec<u8>, byte_count: usize) -> Self //Self 
+        decode(buffer: Vec<u8>, byte_count: usize) -> Option<Self> //Self 
         {
             let local_identifier = [
                 *buffer.get(0).unwrap(),
@@ -106,41 +101,136 @@ pub mod message
                 *buffer.get(3).unwrap()
             ];
 
-            Self
+            let data = Self
             {
                 identifier: 
                     local_identifier,
                 src: 
                     *buffer.get(4).unwrap(),
                 sequence_nr: 
-                    u16::from_le_bytes([*buffer.get(5).unwrap(), *buffer.get(6).unwrap()]),
+                    u16::from_be_bytes([*buffer.get(6).unwrap(), *buffer.get(5).unwrap()]),
                 msg_type: 
                     MsgType::from_u8(*buffer.get(7).unwrap()),
                 data:
                     Vec::from(&buffer[8..byte_count])
+            };
+
+            if data.identifier == SYSTEM_IDENTIFIER
+            {
+                Some(data)
+            }
+            else 
+            {
+                None    
             }
         }
         
+    }
+
+
+    pub enum
+    Modules
+    {
+        Decision    = 0,
+        Hardware    = 1,
+        Memory      = 2,
+        Network     = 3,
+        Corrupted   = 99,
+    }
+
+    impl
+    Modules
+    {
+        pub fn
+        from_u8(val: u8) -> Self
+        {
+            match val
+            {
+                0 => Modules::Decision,
+                1 => Modules::Hardware,
+                2 => Modules::Memory,
+                3 => Modules::Network,
+                _ => Modules::Corrupted
+            }
+        }  
+
+        pub fn
+        to_u8(&self) -> u8
+        {
+            match self
+            {
+                Modules::Decision   => 0,
+                Modules::Hardware   => 1,
+                Modules::Memory     => 2,
+                Modules::Network    => 3,
+                _                   => 99,
+            }
+        }
+    }
+
+    pub struct
+    InternalMsg
+    {
+        src         : Modules,
+        data        : Vec<u8>
     }
 
     impl
     InternalMsg
     {
         pub fn
-        new(_src: u8, _data: Vec<u8>, _command: String) -> Self
+        new(src: Modules, data: Vec<u8>) -> Self
         {
             Self 
             { 
-                _src, 
-                _data, 
+                src, 
+                data, 
             }
         }
 
         pub fn
-        deserialize_from_udp(&self, _message: UdpMsg) -> () //InternalMsg
+        from_udp(&self, message: UdpMsg) -> Self
         {
-            ()
+            Self
+            {
+                src: Modules::from_u8(message.src),
+                data: message.data
+            }
+        }
+
+        pub fn
+        to_udp(&self, sequence_nr: u16, msg_type: MsgType) -> UdpMsg
+        {
+            UdpMsg{ 
+                identifier  : SYSTEM_IDENTIFIER, 
+                src         : self.src.to_u8(), 
+                sequence_nr , 
+                msg_type    , 
+                data        : self.data.clone()
+            }
         }
     }
 
+    #[derive(Debug)]
+    pub enum
+    ElevatorUpdateMsg
+    {
+        CallButton  (CallButton),
+        FloorSensor (u8),
+        StopButton  (bool),
+        Obstruction (bool)
+    }
+
+    pub enum
+    ElevatorCommand
+    {   
+        // Use elevio::elev::DIRN_DOWN, elevio::elev::DIRN_DOWN and elevio::elev::DIRN_DOWN 
+        MotorDirectionSet(u8),
+
+        // Constructed with (Floor, Call, on/off)
+        CallButtonLightSet((u8, u8, bool)),
+        DoorLightSet(bool),
+        StopLightSet(bool),
+        FloorIndicator(u8),
+    }
 }
