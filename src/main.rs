@@ -5,6 +5,7 @@ use std::time::{self};
 use std::thread::{self, JoinHandle};
 
 use crate::message::message::{ElevatorUpdateMsg, UdpMsg, ElevatorCommand};
+mod hardware;
 mod udpserver;
 mod message;
 mod mem;

@@ -142,11 +142,11 @@ impl Matrix {
     }
 
     pub fn get(&self, id: u64) -> &Elevator {
-        self.matrix.get(id).expect(&format!("get error: no elevator found at {id}.", id))
+        self.matrix.get(&id).expect(&format!("get error: no elevator found at {id}."))
     }
 
     pub fn get_mut(&mut self, id: u64) -> &mut Elevator {
-        self.matrix.get_mut(id).expect(&format!("get_mut error: no elevator found at {id}.", id))
+        self.matrix.get_mut(&id).expect(&format!("get_mut error: no elevator found at {id}."))
     }
 
     pub fn write_elev_current_floor(&mut self, id: u64, floor: u8) {
