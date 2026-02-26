@@ -8,6 +8,7 @@ pub mod udpserver;
 pub mod message;
 mod mem;
 mod misc;
+mod dec;
 
 use crate::mem::{Matrix, MatrixCmd, Elevator};
 use crate::message::message::UdpMsg;
