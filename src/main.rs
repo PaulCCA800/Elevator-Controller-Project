@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{self, Sender, Receiver};
-use std::thread::{self, JoinHandle};
+use std::thread::{self, JoinHandle, sleep};
 
 mod message;
 mod hardware;
@@ -9,8 +9,8 @@ mod udpserver;
 mod misc;
 mod mem;
 
-use crate::mem::{Elevator, MatrixCmd};
-use crate::message::message::{ElevatorUpdateMsg, ElevatorCommand, UdpMsg};
+use crate::mem::{Elevator};
+use crate::message::message::{ElevatorUpdateMsg, ElevatorCommand, UdpMsg, MatrixCmd};
 use crate::udpserver::udp_server::Server;
 use crate::misc::{DELAY_DUR, generate_id};
 
@@ -52,6 +52,7 @@ fn main()
                 if let Ok(mut server_lock) = elevator_server_tx.lock(){
                     server_lock.network_recieve();
                     if let Some(rx_message) = server_lock.get_message(){
+                        println!("Received Message: {:?}", rx_message);
                         network_receive_src.send(rx_message).unwrap();
                     }
                 }
@@ -66,7 +67,7 @@ fn main()
     let (hardware_command_src, hardware_command_recv):
     (Sender<ElevatorCommand>, Receiver<ElevatorCommand>) = mpsc::channel();
 
-    // Hardware Thread
+    // Hardware Rx Thread
     elevator_tasks.push(thread::spawn(move || 
     {
         hardware::hardware::hardware_loop(hardware_update_src, hardware_command_recv);
@@ -76,6 +77,8 @@ fn main()
     let states: HashMap<u64, mem::Elevator> = HashMap::new();
     let mut state_matrix: mem::Matrix = mem::Matrix::new(states);
 
+    // Placeholders - Replace with other thread sources and add conversion to them
+    
     let (_, mem_placeholder_recv):
     (Sender<MatrixCmd>, Receiver<MatrixCmd>) = mpsc::channel();
 
@@ -99,6 +102,30 @@ fn main()
                     Err(_)  => println!("Transmit Failed, elevator {id}."),
                 }
             }
+            thread::sleep(DELAY_DUR);
+        }
+    }));
+
+    elevator_tasks.push(thread::spawn(move || 
+    {
+        let mut num: u16 = 0;
+        
+        loop
+        {
+            {
+                num += 1;
+                let mut data: Vec<u8> = Vec::new();
+                data.push(1);
+                data.push(2);
+                data.push(3);
+                data.push(4);
+                let msg = UdpMsg::new(0, num, message::message::MsgType::Broadcast, data);
+                network_transmit_src.send(msg).unwrap();
+            }
+            thread::sleep(DELAY_DUR);
+            thread::sleep(DELAY_DUR);
+            thread::sleep(DELAY_DUR);
+            thread::sleep(DELAY_DUR);
             thread::sleep(DELAY_DUR);
         }
     }));

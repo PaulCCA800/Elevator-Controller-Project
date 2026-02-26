@@ -107,23 +107,23 @@ hardware
     {
         match command
         {
-            ElevatorCommand::MotorDirectionSet(dir)   => 
+            ElevatorCommand::SetMotorDirection{dir}   => 
             {
                 elevator.motor_direction(dir);
             },
-            ElevatorCommand::CallButtonLightSet((floor, call, status))  => 
+            ElevatorCommand::SetCallButtonLight{floor, call, status}  => 
             {
                 elevator.call_button_light(floor, call, status);
             },
-            ElevatorCommand::DoorLightSet(status)        => 
+            ElevatorCommand::SetDoorLight{status}        => 
             {
                 elevator.door_light(status);
             },
-            ElevatorCommand::StopLightSet(status)        => 
+            ElevatorCommand::SetStopLight{status}        => 
             {
                 elevator.stop_button_light(status);
             },
-            ElevatorCommand::FloorIndicator(floor)      => 
+            ElevatorCommand::SetFloorIndicator{floor}      => 
             {
                 elevator.floor_indicator(floor);
             }

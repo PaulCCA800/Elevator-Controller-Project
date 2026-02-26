@@ -1,19 +1,5 @@
 use std::{collections::{HashMap, VecDeque}};
-
-
-#[derive(Copy, Clone, Eq, PartialEq)]
-enum Direction {
-    Up,
-    Down,
-}
-
-#[derive(Clone)]
-pub struct Order {
-    id: u64,
-    floor: u8,
-    cab: bool,
-    direction: Direction,
-}
+use crate::message::message::{MatrixCmd, Order, Direction};
 
 #[derive(Clone)]
 pub struct Elevator {
@@ -29,33 +15,6 @@ pub struct Elevator {
 
 pub struct Matrix {
     matrix: HashMap <u64, Elevator>
-}
-
-pub enum MatrixCmd {
-    set_floor               {id: u64, floor: u8},
-    set_direction           {id: u64, dir: Direction},
-    set_obstruction         {id: u64, obs: bool},
-    set_stop                {id: u64, stop: bool},
-    set_cab_orders          {id: u64, orders: VecDeque<Order>},
-    set_hall_orders         {id: u64, orders: VecDeque<Order>},
-    set_assigned_orders     {id: u64, orders: VecDeque<Order>},
-    add_cab_order           {id: u64, order: Order},
-    remove_cab_order        {id: u64},
-    add_hall_order          {id: u64, order: Order},
-    remove_hall_order       {id: u64},
-    add_assigned_order      {id: u64, order: Order},
-    remove_assigned_order   {id: u64},
-}
-
-impl Order {
-    pub fn new(id: u64, floor: u8, cab: bool, direction: Direction) -> Self{
-        Self{
-            id,
-            floor,
-            cab,
-            direction,
-        }
-    }
 }
 
 impl Elevator{
@@ -203,43 +162,43 @@ impl Matrix {
 
     pub fn edit_matrix(&mut self, cmd: MatrixCmd) {
         match cmd { 
-            MatrixCmd::set_floor {id, floor} 
+            MatrixCmd::SetFloor {id, floor} 
             => self.write_elev_current_floor(id, floor),
 
-            MatrixCmd::set_direction {id, dir} 
+            MatrixCmd::SetDirection {id, dir} 
             => self.set_elev_direction(id, dir),
 
-            MatrixCmd::set_obstruction {id, obs} 
+            MatrixCmd::SetObstruction {id, obs} 
             => self.set_elev_obstruction(id, obs),
 
-            MatrixCmd::set_stop {id, stop} 
+            MatrixCmd::SetStop {id, stop} 
             => self.set_elev_stop(id, stop),
 
-            MatrixCmd::set_cab_orders {id, orders} 
+            MatrixCmd::SetCabOrders {id, orders} 
             => self.set_elev_cab_orders(id, orders),
 
-            MatrixCmd::set_hall_orders {id, orders} 
+            MatrixCmd::SetHallOrders {id, orders} 
             => self.set_elev_hall_orders(id, orders), 
 
-            MatrixCmd::set_assigned_orders {id, orders} 
+            MatrixCmd::SetAssignedOrders {id, orders} 
              => self.set_elev_assigned_orders(id, orders),
 
-            MatrixCmd::add_cab_order {id, order}
+            MatrixCmd::AddCabOrder {id, order}
             =>self.add_elev_cab_order(id, order),
 
-            MatrixCmd::remove_cab_order {id}
+            MatrixCmd::RemoveCabOrder {id}
             =>self.remove_elev_cab_order(id),
 
-            MatrixCmd::add_hall_order {id, order}
+            MatrixCmd::AddHallOrder {id, order}
             =>self.add_elev_hall_order(id, order),
 
-            MatrixCmd::remove_hall_order {id}
+            MatrixCmd::RemoveHallOrder {id}
             =>self.remove_elev_hall_order(id),
 
-            MatrixCmd::add_assigned_order {id, order}
+            MatrixCmd::AddAssignedOrder {id, order}
             =>self.add_elev_assigned_order(id, order),
 
-            MatrixCmd::remove_assigned_order {id}
+            MatrixCmd::RemoveAssignedOrder {id}
             =>self.remove_elev_assigned_order(id),
 
         }

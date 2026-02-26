@@ -54,12 +54,10 @@ udp_server
         network_transmit(&self, mut message: UdpMsg)
         {
             let transmit_buffer = message.encode();
-
-            let a = self.server.send_to(&transmit_buffer, "255.255.255.255:8080");
-            match a {
-                Ok(_) => (),
-                Err(e) => println!("Error: {e}")
-            };
+            
+            if let Err(error) = self.server.send_to(&transmit_buffer, "255.255.255.255:8080"){
+                println!("Transmit Error: {error}");
+            }
         }
 
         pub fn

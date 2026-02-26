@@ -1,9 +1,12 @@
 pub mod message
 {
+    use std::collections::VecDeque;
+
     use driver_rust::elevio::poll::CallButton;
 
     pub const SYSTEM_IDENTIFIER: [u8; 4] = [0xF0, 0x9F, 0x8D, 0x86];
 
+    #[derive(Debug)]
     pub enum 
     MsgType 
     {
@@ -41,6 +44,7 @@ pub mod message
         }  
     }
 
+    #[derive(Debug)]
     pub struct
     UdpMsg
     {
@@ -48,7 +52,7 @@ pub mod message
         src         : u8,
         sequence_nr : u16,
         msg_type    : MsgType,
-        data    : Vec<u8>,
+        data        : Vec<u8>,
     }
 
     impl
@@ -122,7 +126,6 @@ pub mod message
                 None    
             }
         }
-        
     }
 
 
@@ -166,49 +169,6 @@ pub mod message
         }
     }
 
-    pub struct
-    InternalMsg
-    {
-        src         : Modules,
-        data        : Vec<u8>
-    }
-
-    impl
-    InternalMsg
-    {
-        pub fn
-        new(src: Modules, data: Vec<u8>) -> Self
-        {
-            Self 
-            { 
-                src, 
-                data, 
-            }
-        }
-
-        pub fn
-        from_udp(&self, message: UdpMsg) -> Self
-        {
-            Self
-            {
-                src: Modules::from_u8(message.src),
-                data: message.data
-            }
-        }
-
-        pub fn
-        to_udp(&self, sequence_nr: u16, msg_type: MsgType) -> UdpMsg
-        {
-            UdpMsg{ 
-                identifier  : SYSTEM_IDENTIFIER, 
-                src         : self.src.to_u8(), 
-                sequence_nr , 
-                msg_type    , 
-                data        : self.data.clone()
-            }
-        }
-    }
-
     #[derive(Debug)]
     pub enum
     ElevatorUpdateMsg
@@ -221,14 +181,94 @@ pub mod message
 
     pub enum
     ElevatorCommand
-    {   
-        // Use elevio::elev::DIRN_DOWN, elevio::elev::DIRN_DOWN and elevio::elev::DIRN_DOWN 
-        MotorDirectionSet(u8),
-
-        // Constructed with (Floor, Call, on/off)
-        CallButtonLightSet((u8, u8, bool)),
-        DoorLightSet(bool),
-        StopLightSet(bool),
-        FloorIndicator(u8),
+    {    
+        SetMotorDirection   {dir: u8},
+        SetCallButtonLight  {floor: u8, call: u8, status: bool},
+        SetDoorLight        {status: bool},
+        SetStopLight        {status: bool},
+        SetFloorIndicator   {floor: u8},
     }
+
+
+    #[derive(Copy, Clone, Eq, PartialEq)]
+    pub enum Direction {
+        Up,
+        Down,
+    }
+
+    #[derive(Clone)]
+    pub struct Order {
+        id          : u64,
+        floor       : u8,
+        cab         : bool,
+        direction   : Direction,
+    }
+
+    impl Order {
+        pub fn new(id: u64, floor: u8, cab: bool, direction: Direction) -> Self{
+            Self{
+                id,
+                floor,
+                cab,
+                direction,
+            }
+        }
+    }
+
+    pub enum MatrixCmd {
+        SetFloor            {id: u64, floor: u8},
+        SetDirection        {id: u64, dir: Direction},
+        SetObstruction      {id: u64, obs: bool},
+        SetStop             {id: u64, stop: bool},
+        SetCabOrders        {id: u64, orders: VecDeque<Order>},
+        SetHallOrders       {id: u64, orders: VecDeque<Order>},
+        SetAssignedOrders   {id: u64, orders: VecDeque<Order>},
+        AddCabOrder         {id: u64, order: Order},
+        RemoveCabOrder      {id: u64},
+        AddHallOrder        {id: u64, order: Order},
+        RemoveHallOrder     {id: u64},
+        AddAssignedOrder    {id: u64, order: Order},
+        RemoveAssignedOrder {id: u64},
+    }
+
+    /*
+    impl 
+    ElevatorUpdateMsg {
+        pub fn
+        to_matrix_command(&self) -> MatrixCmd
+        {
+            match self
+            {
+                ElevatorUpdateMsg::FloorSensor(floor) 
+                    => MatrixCmd::SetFloor { id: 0, floor: *floor},
+                ElevatorUpdateMsg::CallButton(call_button)    
+                    => MatrixCmd::AddAssignedOrder { id: 0, order: Order{id: 0, floor: call_button.floor, direction: call_button.call} },
+                ElevatorUpdateMsg::Obstruction(obs)
+                    => MatrixCmd::SetObstruction { id: 0, obs: *obs },
+                _ 
+                => MatrixCmd::SetStop { id: _, stop: _ },
+            }
+        }    
+    }
+
+    impl 
+    ElevatorCommand
+    {
+        
+        pub fn
+        to_matrix_command(&self) -> MatrixCmd
+        {
+            match self
+            {
+                
+            }
+        }
+        
+        pub fn
+        from_matrix_command(cmd: MatrixCmd) -> ElevatorCommand
+        {
+
+        }
+    }
+    */
 }
