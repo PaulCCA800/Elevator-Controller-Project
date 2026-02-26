@@ -59,88 +59,130 @@ Message
             MessageContent::Hardware(hardware_data)
             => 
             {
-                match hardware_data
-                {
-                    HardwareData::GetCallButton {call_button_data}
-                    => {
-                        self.data = 
-                        MessageContent::Memory(
-                        MemoryData{ 
-                        data: ElevatorStatusCommand::AddOrder
-                        {   
-                            elevator_id: self.id, 
-                            order: Order::new(
-                                self.id, 
-                                call_button_data.floor, 
-                                is_cab(call_button_data.call),
-                                get_dir(call_button_data.call),
-                                OrderStatus::Unconfirmed, 
-                                vec![], 
-                                self.id),
-                            }});
-                        Some(self)
-                    },
-                    HardwareData::GetFloorSensor{floor}
-                    => 
-                    {
-                        self.data = MessageContent::Memory(
-                            MemoryData{ 
-                                data: ElevatorStatusCommand::SetFloor{ 
-                                    elevator_id: self.id, 
-                                    floor
-                                }});
-                        Some(self)
-                    },
-                    HardwareData::GetObstruction { status }
-                    => {
-                        self.data = MessageContent::Memory(
-                            MemoryData { 
-                                data: ElevatorStatusCommand::SetObstruction 
-                                    { 
-                                        elevator_id: self.id, 
-                                        obs: status
-                                    }});
-                        Some(self)
-                    },
-                    HardwareData::GetStopButton { status } 
-                    => {
-                        self.data = MessageContent::Memory(
-                            MemoryData { 
-                                data: ElevatorStatusCommand::SetStop 
-                                    { 
-                                        elevator_id: self.id, 
-                                        stop: status
-                                    }});
-                        Some(self)
-                    }, 
-                    _ => None
+                if let Some(translated_message_content) = Message::hardware_to_memory(hardware_data, self.id){
+                    self.data = translated_message_content;
+                    Some(self)
+                } else {
+                    None
                 }
             },
             MessageContent::Network(network_data)
             => 
             {
                 None    
-            }
-            //todo: add actual conversion
-            ,
+            },
             _ 
             => Some(self),
         }
     }
 
-    /*
     pub fn
-    to_network(self) -> Result<MessageContent, Error>
+    to_hardware(mut self) -> Option<Message>
     {
-        //Ok(self)
+        match self.data
+        {
+            MessageContent::Memory(elevator_command)
+            => {
+                match elevator_command.data
+                {
+                    ElevatorStatusCommand::SetFloor{elevator_id, floor } 
+                    => {
+                        None
+                    },
+                    ElevatorStatusCommand::SetDirection{elevator_id, dir }
+                    => {
+                        self.id     = elevator_id;
+                        self.data   = MessageContent::Hardware(
+                            HardwareData::SetMotorDirection {dir: dir.to_u8()}
+                        );
+                        Some(self)
+                    },
+                    ElevatorStatusCommand::SetStop{elevator_id, stop }
+                    => {
+                        self.id = elevator_id;
+                        self.data = MessageContent::Hardware(
+                            HardwareData::SetStopLight { status: stop }
+                        );
+                        Some(self)
+                    },
+                    _ => None,
+                }
+            },
+            _ => None
+        }
     }
 
     pub fn
-    to_hardware(self) -> Result<MessageContent, Error>
+    to_network(mut self) -> Option<()>
     {
-        //Ok(self)
+        match self.data
+        {
+            MessageContent::Memory(memory_data) 
+            => Some(()),
+            _ => None
+        }
     }
-     */
+
+    fn
+    hardware_to_memory(hardware_data: HardwareData, id: u64) -> Option<MessageContent>
+    {
+        match hardware_data
+        {
+        HardwareData::GetCallButton {call_button_data}
+        => 
+        {
+            let output = MessageContent::Memory(
+            MemoryData{ 
+            data: ElevatorStatusCommand::AddOrder
+            {   
+                elevator_id: id, 
+                order: Order::new(
+                    id, 
+                    call_button_data.floor, 
+                    is_cab(call_button_data.call),
+                    get_dir(call_button_data.call),
+                    OrderStatus::Unconfirmed, 
+                    vec![], 
+                    id),
+                }});
+            Some(output)
+        },
+        HardwareData::GetFloorSensor{floor}
+        => 
+        {
+            let output = MessageContent::Memory(
+            MemoryData{ 
+            data: ElevatorStatusCommand::SetFloor{ 
+                elevator_id: id, 
+                floor
+            }});
+            Some(output)
+        },
+        HardwareData::GetObstruction { status }
+        => 
+        {
+            let output = MessageContent::Memory(
+            MemoryData { 
+            data: ElevatorStatusCommand::SetObstruction{ 
+                elevator_id: id, 
+                obs: status
+            }});
+            Some(output)
+        },
+        HardwareData::GetStopButton { status } 
+        => 
+        {
+            let output = MessageContent::Memory(
+            MemoryData { 
+            data: ElevatorStatusCommand::SetStop{ 
+                elevator_id: id, 
+                stop: status
+            }});
+            Some(output)
+        },
+        _ => None
+        }
+    }
 }
 
 fn
@@ -323,45 +365,4 @@ pub mod message
         SetStopLight        {status: bool},
         SetFloorIndicator   {floor: u8},
     }
-
-    /*
-    impl 
-    ElevatorUpdateMsg {
-        pub fn
-        to_matrix_command(&self) -> MatrixCmd
-        {
-            match self
-            {
-                ElevatorUpdateMsg::FloorSensor(floor) 
-                    => MatrixCmd::SetFloor { id: 0, floor: *floor},
-                ElevatorUpdateMsg::CallButton(call_button)    
-                    => MatrixCmd::AddAssignedOrder { id: 0, order: Order{id: 0, floor: call_button.floor, direction: call_button.call} },
-                ElevatorUpdateMsg::Obstruction(obs)
-                    => MatrixCmd::SetObstruction { id: 0, obs: *obs },
-                _ 
-                => MatrixCmd::SetStop { id: _, stop: _ },
-            }
-        }    
-    }
-
-    impl 
-    ElevatorCommand
-    {
-        
-        pub fn
-        to_matrix_command(&self) -> MatrixCmd
-        {
-            match self
-            {
-                
-            }
-        }
-        
-        pub fn
-        from_matrix_command(cmd: MatrixCmd) -> ElevatorCommand
-        {
-
-        }
-    }
-    */
 }

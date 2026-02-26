@@ -5,7 +5,24 @@ use std::{collections::{HashMap, VecDeque}};
 pub enum Direction {
     Up,
     Down,
-    Inherit
+    Inherit,
+    Stop
+}
+
+impl
+Direction
+{
+    pub fn
+    to_u8(&self) -> u8
+    {
+        match self
+        {
+            Direction::Up       => 1,
+            Direction::Down     => u8::MAX,
+            Direction::Inherit  => 0,
+            Direction::Stop     => 0
+        }
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq)]
@@ -55,12 +72,12 @@ pub enum ElevatorStatusCommand {
 }
 
 pub enum OrderQueueCommand {
-    AddToOrderQueue {order: Order},
+    AddToOrderQueue     {order: Order},
     RemoveFromOrderQueue{order_id: u64},
-    SetOrderStatus{order_id: u64, status: OrderStatus},
-    SetAckBarrier{order_id: u64, barrier: Vec<u64>},
-    InsertAckBarrier{order_id: u64, elevator_id: u64},
-    AssignOrder{order_id: u64, elevator_id: u64},
+    SetOrderStatus      {order_id: u64, status: OrderStatus},
+    SetAckBarrier       {order_id: u64, barrier: Vec<u64>},
+    InsertAckBarrier    {order_id: u64, elevator_id: u64},
+    AssignOrder         {order_id: u64, elevator_id: u64},
 }
 
 impl Order {
