@@ -5,6 +5,7 @@ use std::{collections::{HashMap, VecDeque}};
 pub enum Direction {
     Up,
     Down,
+    Inherit
 }
 
 #[derive(Copy, Clone, Eq, PartialEq)]
@@ -20,7 +21,7 @@ pub struct Order {
     floor: u8,
     cab: bool,
     direction: Direction,
-    orderStatus: OrderStatus,
+    order_status: OrderStatus,
     ack_barrier: Vec<u64>,
     assigned_to: u64,
 }
@@ -44,16 +45,13 @@ pub struct WorldView {
 }
 
 pub enum ElevatorStatusCommand {
-    SetFloor {elevator_id: u64, floor: u8},
-    SetDirection {elevator_id: u64, dir: Direction},
-    SetObstruction {elevator_id: u64, obs: bool},
-    SetStop {elevator_id: u64, stop: bool},
-    SetCabOrders {elevator_id: u64, orders: VecDeque<Order>},
-    SetHallOrders {elevator_id: u64, orders: VecDeque<Order>},
-    AddCabOrder{elevator_id: u64, order: Order},
-    RemoveCabOrder {elevator_id: u64},
-    AddHallOrder{elevator_id: u64, order: Order},
-    RemoveHallOrder {elevator_id: u64},
+    SetFloor        {elevator_id: u64, floor: u8},
+    SetDirection    {elevator_id: u64, dir: Direction},
+    SetObstruction  {elevator_id: u64, obs: bool},
+    SetStop         {elevator_id: u64, stop: bool},
+    SetOrders       {elevator_id: u64, orders: VecDeque<Order>},
+    AddOrder        {elevator_id: u64, order: Order},
+    RemoveOrder     {elevator_id: u64},
 }
 
 pub enum OrderQueueCommand {
@@ -67,20 +65,20 @@ pub enum OrderQueueCommand {
 
 impl Order {
     pub fn new(order_id: u64, floor: u8, cab: bool, direction: Direction, 
-               orderStatus: OrderStatus, ack_barrier: Vec<u64>, assigned_to: u64) -> Self{
+               order_status: OrderStatus, ack_barrier: Vec<u64>, assigned_to: u64) -> Self{
         Self{
             order_id,
             floor,
             cab,
             direction,
-            orderStatus,
+            order_status,
             ack_barrier,
             assigned_to,
         }
     }
 
     pub fn set_status(&mut self, status: OrderStatus) {
-        self.orderStatus = status;
+        self.order_status = status;
     }
 
     pub fn set_ack_barrier(&mut self, barrier: Vec<u64>) {
@@ -272,25 +270,14 @@ impl WorldView {
             ElevatorStatusCommand::SetStop {elevator_id, stop} 
             => self.set_elev_stop(elevator_id, stop),
 
-            ElevatorStatusCommand::SetCabOrders {elevator_id, orders} 
-            => self.set_elev_cab_orders(elevator_id, orders),
+            ElevatorStatusCommand::SetOrders {elevator_id, orders} 
+            => self.set_elev_cab_orders(elevator_id, orders), 
 
-            ElevatorStatusCommand::SetHallOrders {elevator_id, orders} 
-            => self.set_elev_hall_orders(elevator_id, orders), 
-
-            ElevatorStatusCommand::AddCabOrder {elevator_id, order}
+            ElevatorStatusCommand::AddOrder {elevator_id, order}
             =>self.add_elev_cab_order(elevator_id, order),
 
-            ElevatorStatusCommand::RemoveCabOrder {elevator_id}
-            =>self.remove_elev_cab_order(elevator_id),
-
-            ElevatorStatusCommand::AddHallOrder {elevator_id, order}
-            =>self.add_elev_hall_order(elevator_id, order),
-
-            ElevatorStatusCommand::RemoveHallOrder {elevator_id}
-            =>self.remove_elev_hall_order(elevator_id),
-   
-
+            ElevatorStatusCommand::RemoveOrder {elevator_id}
+            =>self.remove_elev_cab_order(elevator_id)
         }
     }
 

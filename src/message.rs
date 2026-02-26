@@ -1,4 +1,8 @@
+use std::{fmt::Error, vec};
+
 use driver_rust::elevio::poll::CallButton;
+
+use crate::mem::{Direction, ElevatorStatusCommand, OrderStatus, Order};
 
 pub struct
 Message
@@ -18,7 +22,7 @@ MessageContent
 pub struct
 MemoryData
 {
-    
+    data: ElevatorStatusCommand,
 }
 
 pub struct
@@ -41,6 +45,122 @@ HardwareData
     SetDoorLight        {status: bool},
     SetStopLight        {status: bool},
     SetFloorIndicator   {floor: u8},
+}
+
+impl 
+Message
+{
+    pub fn
+    to_memory(mut self) -> Option<Message>
+    {
+        match self.data
+        {
+            MessageContent::Hardware(hardware_data)
+            => 
+            {
+                match hardware_data
+                {
+                    HardwareData::GetCallButton {call_button_data}
+                    => {
+                        self.data = 
+                        MessageContent::Memory(
+                        MemoryData{ 
+                        data: ElevatorStatusCommand::AddOrder
+                        {   
+                            elevator_id: self.id, 
+                            order: Order::new(
+                                self.id, 
+                                call_button_data.floor, 
+                                is_cab(call_button_data.call),
+                                get_dir(call_button_data.call),
+                                OrderStatus::Unconfirmed, 
+                                vec![], 
+                                self.id),
+                            }});
+                        Some(self)
+                    },
+                    HardwareData::GetFloorSensor{floor}
+                    => 
+                    {
+                        self.data = MessageContent::Memory(
+                            MemoryData{ 
+                                data: ElevatorStatusCommand::SetFloor{ 
+                                    elevator_id: self.id, 
+                                    floor
+                                }});
+                        Some(self)
+                    },
+                    HardwareData::GetObstruction { status }
+                    => {
+                        self.data = MessageContent::Memory(
+                            MemoryData { 
+                                data: ElevatorStatusCommand::SetObstruction 
+                                    { 
+                                        elevator_id: self.id, 
+                                        obs: status
+                                    }});
+                        Some(self)
+                    },
+                    HardwareData::GetStopButton { status } 
+                    => {
+                        self.data = MessageContent::Memory(
+                            MemoryData { 
+                                data: ElevatorStatusCommand::SetStop 
+                                    { 
+                                        elevator_id: self.id, 
+                                        stop: status
+                                    }});
+                        Some(self)
+                    }, 
+                    _ => None
+                }
+            },
+            MessageContent::Network(network_data)
+            => 
+            {
+                
+                None    
+            }
+            //todo: add actual conversion
+            ,
+            _ 
+            => Some(self),
+        }
+    }
+
+    /*
+    pub fn
+    to_network(self) -> Result<MessageContent, Error>
+    {
+        //Ok(self)
+    }
+
+    pub fn
+    to_hardware(self) -> Result<MessageContent, Error>
+    {
+        //Ok(self)
+    }
+     */
+}
+
+fn
+is_cab(call: u8) -> bool
+{
+    return call == 2;
+}
+
+fn
+get_dir(call: u8) -> Direction
+{
+    if call == 2
+    {
+        return Direction::Inherit;
+    }
+    else if call == 1
+    {
+        return Direction::Down
+    }
+    return Direction::Up;
 }
 
 pub mod message
