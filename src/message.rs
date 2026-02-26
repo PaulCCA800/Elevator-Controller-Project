@@ -3,7 +3,7 @@ use std::vec;
 use driver_rust::elevio::poll::CallButton;
 use serde::{Deserialize, Serialize};
 
-use crate::mem::{Direction, ElevatorStatusCommand, OrderStatus, Order};
+use crate::mem::{Direction, ElevatorStatusCommand, Order, OrderStatus, WorldView};
 
 pub struct
 Message
@@ -31,7 +31,7 @@ NetworkData
 {
     source_id   : [u8; 4],
     machine_id  : u64,
-    data        : Vec<u8>
+    data        : WorldView
 }
 
 pub enum
