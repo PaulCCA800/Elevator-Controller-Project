@@ -10,7 +10,7 @@ mod misc;
 mod mem;
 
 use crate::mem::{Elevator, Order, ElevatorStatusCommand};
-use crate::message::message::{ElevatorUpdateMsg, ElevatorCommand, UdpMsg, MatrixCmd};
+use crate::message::message::{ElevatorUpdateMsg, ElevatorCommand, UdpMsg};
 use crate::udpserver::udp_server::Server;
 use crate::misc::{DELAY_DUR, generate_id};
 

@@ -1,6 +1,7 @@
-use std::{fmt::Error, vec};
+use std::vec;
 
 use driver_rust::elevio::poll::CallButton;
+use serde::{Deserialize, Serialize};
 
 use crate::mem::{Direction, ElevatorStatusCommand, OrderStatus, Order};
 
@@ -118,7 +119,6 @@ Message
             MessageContent::Network(network_data)
             => 
             {
-                
                 None    
             }
             //todo: add actual conversion
@@ -304,36 +304,6 @@ pub mod message
         Corrupted   = 99,
     }
 
-    impl
-    Modules
-    {
-        pub fn
-        from_u8(val: u8) -> Self
-        {
-            match val
-            {
-                0 => Modules::Decision,
-                1 => Modules::Hardware,
-                2 => Modules::Memory,
-                3 => Modules::Network,
-                _ => Modules::Corrupted
-            }
-        }  
-
-        pub fn
-        to_u8(&self) -> u8
-        {
-            match self
-            {
-                Modules::Decision   => 0,
-                Modules::Hardware   => 1,
-                Modules::Memory     => 2,
-                Modules::Network    => 3,
-                _                   => 99,
-            }
-        }
-    }
-
     #[derive(Debug)]
     pub enum
     ElevatorUpdateMsg
@@ -352,48 +322,6 @@ pub mod message
         SetDoorLight        {status: bool},
         SetStopLight        {status: bool},
         SetFloorIndicator   {floor: u8},
-    }
-
-
-    #[derive(Copy, Clone, Eq, PartialEq)]
-    pub enum Direction {
-        Up,
-        Down,
-    }
-
-    #[derive(Clone)]
-    pub struct Order {
-        id          : u64,
-        floor       : u8,
-        cab         : bool,
-        direction   : Direction,
-    }
-
-    impl Order {
-        pub fn new(id: u64, floor: u8, cab: bool, direction: Direction) -> Self{
-            Self{
-                id,
-                floor,
-                cab,
-                direction,
-            }
-        }
-    }
-
-    pub enum MatrixCmd {
-        SetFloor            {id: u64, floor: u8},
-        SetDirection        {id: u64, dir: Direction},
-        SetObstruction      {id: u64, obs: bool},
-        SetStop             {id: u64, stop: bool},
-        SetCabOrders        {id: u64, orders: VecDeque<Order>},
-        SetHallOrders       {id: u64, orders: VecDeque<Order>},
-        SetAssignedOrders   {id: u64, orders: VecDeque<Order>},
-        AddCabOrder         {id: u64, order: Order},
-        RemoveCabOrder      {id: u64},
-        AddHallOrder        {id: u64, order: Order},
-        RemoveHallOrder     {id: u64},
-        AddAssignedOrder    {id: u64, order: Order},
-        RemoveAssignedOrder {id: u64},
     }
 
     /*
