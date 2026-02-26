@@ -1,3 +1,48 @@
+use driver_rust::elevio::poll::CallButton;
+
+pub struct
+Message
+{
+    id: u64,
+    data: MessageContent
+}
+
+pub enum
+MessageContent
+{
+    Memory  (MemoryData),
+    Network (NetworkData),
+    Hardware(HardwareData),
+}
+
+pub struct
+MemoryData
+{
+    
+}
+
+pub struct
+NetworkData
+{
+    source_id   : [u8; 4],
+    machine_id  : u64,
+    data        : Vec<u8>
+}
+
+pub enum
+HardwareData
+{
+    GetCallButton       {call_button_data: CallButton},
+    GetFloorSensor      {floor: u8},
+    GetStopButton       {status: bool},
+    GetObstruction      {status: bool},
+    SetMotorDirection   {dir: u8},
+    SetCallButtonLight  {floor: u8, call: u8, status: bool},
+    SetDoorLight        {status: bool},
+    SetStopLight        {status: bool},
+    SetFloorIndicator   {floor: u8},
+}
+
 pub mod message
 {
     use std::collections::VecDeque;
