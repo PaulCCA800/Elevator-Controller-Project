@@ -39,6 +39,26 @@ pub struct Input {
     states: HashMap<String, ElevatorState>,
 }
 
+impl Input {
+    pub fn new(hall_orders: Vec<[bool; 2]>, states: HashMap<String, ElevatorState>) -> Self {
+        Self{
+            hall_orders,
+            states,
+        }
+    }
+}
+
+impl ElevatorState {
+    pub fn new(behaviour: Behaviour, floor: u8, direction: Direction, cab_requests: Vec<bool>) -> Self {
+        Self {
+            behaviour,
+            floor,
+            direction,
+            cab_requests,
+        }
+    }
+}
+
 pub type Output = HashMap<String, Vec<[bool; 2]>>;
 
 pub fn assigner(input: &Input, exe_path: &String) -> anyhow::Result<Output> {
@@ -65,5 +85,10 @@ pub fn assigner(input: &Input, exe_path: &String) -> anyhow::Result<Output> {
 }
 
 pub fn make_elevator_decision(lastWorldView: WorldView) -> ElevatorStatusCommand {
-    
+    let states: HashMap<String, ElevatorState> = HashMap::new();
+    for (id, elevator) in &lastWorldView.elevatorStatus {
+        let id_string: String = id.to_string();
+        let state: ElevatorState = ElevatorState::new(elevator.direction, elevator.current_floor, 
+                                                      elevator.direction, elevator.cab_orders);
+    }
 }

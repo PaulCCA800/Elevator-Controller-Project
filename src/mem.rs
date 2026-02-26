@@ -30,7 +30,7 @@ pub struct Elevator {
     elevator_id: u64,
     current_floor: u8,
     direction: Direction,
-    obstruction: bool,
+    door_open: bool,
     stop: bool,
     cab_orders: VecDeque<Order>,
     hall_orders: VecDeque<Order>,
@@ -104,7 +104,7 @@ impl Elevator{
             elevator_id,
             current_floor,
             direction,
-            obstruction,
+            door_open,
             stop,
             cab_orders,
             hall_orders,
@@ -128,7 +128,7 @@ impl Elevator{
     }
 
     fn set_obstruction(&mut self, obs: bool) {
-        self.obstruction = obs;
+        self.door_open = obs;
     }
 
     fn set_stop(&mut self, stop: bool) {
