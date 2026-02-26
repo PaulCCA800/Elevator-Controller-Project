@@ -9,7 +9,7 @@ mod udpserver;
 mod misc;
 mod mem;
 
-use crate::mem::{Elevator};
+use crate::mem::{Elevator, Order, ElevatorStatusCommand};
 use crate::message::message::{ElevatorUpdateMsg, ElevatorCommand, UdpMsg, MatrixCmd};
 use crate::udpserver::udp_server::Server;
 use crate::misc::{DELAY_DUR, generate_id};
@@ -75,12 +75,14 @@ fn main()
 
     // Memory Section
     let states: HashMap<u64, mem::Elevator> = HashMap::new();
-    let mut state_matrix: mem::Matrix = mem::Matrix::new(states);
+    let states_1: HashMap<u64, Order> = HashMap::new();
+    let states_2: HashMap<u64, u8> = HashMap::new();
+    let mut state_matrix: mem::WorldView = mem::WorldView::new(states, states_1, states_2);
 
     // Placeholders - Replace with other thread sources and add conversion to them
     
     let (_, mem_placeholder_recv):
-    (Sender<MatrixCmd>, Receiver<MatrixCmd>) = mpsc::channel();
+    (Sender<ElevatorStatusCommand>, Receiver<ElevatorStatusCommand>) = mpsc::channel();
 
     let (mem_placeholder_src, _):
     (Sender<Elevator>, Receiver<Elevator>) = mpsc::channel();
@@ -92,10 +94,10 @@ fn main()
         loop{
             {
                 while let Ok(command) = mem_placeholder_recv.try_recv(){
-                    state_matrix.edit_matrix(command);
+                    state_matrix.edit_elevator_status(command);
                 }
 
-                let elevator_data: Elevator = state_matrix.get(id).clone();
+                let elevator_data: Elevator = state_matrix.get_elevator(id).clone();
                 match mem_placeholder_src.send(elevator_data)
                 {
                     Ok(_)   => println!("Transmit Successful, elevator: {id}."),
