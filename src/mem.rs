@@ -69,6 +69,7 @@ pub enum ElevatorStatusCommand {
     SetOrders       {elevator_id: u64, orders: VecDeque<Order>},
     AddOrder        {elevator_id: u64, order: Order},
     RemoveOrder     {elevator_id: u64},
+    AddWorldView    {elevator_id: u64, world: WorldView}
 }
 
 pub enum OrderQueueCommand {
@@ -294,7 +295,9 @@ impl WorldView {
             =>self.add_elev_cab_order(elevator_id, order),
 
             ElevatorStatusCommand::RemoveOrder {elevator_id}
-            =>self.remove_elev_cab_order(elevator_id)
+            =>self.remove_elev_cab_order(elevator_id),
+
+            _ => ()
         }
     }
 

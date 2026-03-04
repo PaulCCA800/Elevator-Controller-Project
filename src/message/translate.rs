@@ -31,13 +31,9 @@ impl
 NetworkData
 {
     pub fn
-    network_to_memory(self, id: u64) -> Result<MemoryData, Error>
+    network_to_memory(self) -> Result<MemoryData, Error>
     {
-        match self
-        {
-            
-            _ => Err(Error::default()),
-        }
+        Ok(MemoryData::from_network_data(self.data, self.machine_id))
     }
 }
 
@@ -53,6 +49,6 @@ MemoryData
     pub fn
     memory_to_network()
     {
-        
+
     }
 }

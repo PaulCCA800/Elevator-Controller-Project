@@ -1,4 +1,4 @@
-use crate::mem::{Direction, ElevatorStatusCommand, Order, OrderStatus};
+use crate::mem::{Direction, ElevatorStatusCommand, Order, OrderStatus, WorldView};
 use driver_rust::elevio::poll::CallButton;
 
 pub struct
@@ -34,9 +34,14 @@ impl
 MemoryData
 {
     pub fn
-    from_network_data()
+    from_network_data(data: WorldView, id: u64) -> Self
     {
-
+        MemoryData { 
+            data: ElevatorStatusCommand::AddWorldView { 
+                elevator_id: id, 
+                world: data 
+            }
+        }
     }
 }
 
