@@ -55,8 +55,11 @@ MemoryData
     }
 
     pub fn
-    memory_to_hardware() -> Result<HardwareData, Erorr>
+    memory_to_hardware(self) -> Result<HardwareData, Error>
     {
-
+        match self.data
+        {
+            _ => Err(Error::default())
+        }
     }
 }
