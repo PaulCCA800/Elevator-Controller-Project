@@ -1,5 +1,7 @@
 use crate::mem::WorldView;
 
+const SYSTEM_IDENTIFIER: [u8; 4] = [0xF0, 0x9F, 0x8D, 0x86];
+
 pub struct
 NetworkData
 {
@@ -12,19 +14,18 @@ impl
 NetworkData
 {
     pub fn
-    from_mem_data()
+    new(data: WorldView, machine_id: u64) -> Self
     {
-
+        NetworkData { 
+            source_id: SYSTEM_IDENTIFIER, 
+            machine_id, 
+            data 
+        }
     }
 
     pub fn
-    new(source_id: [u8; 4], machine_id: u64, data: WorldView) -> Self
+    from_mem_data(data: WorldView, id: u64) -> NetworkData
     {
-        Self
-        {
-            source_id,
-            machine_id,
-            data
-        }
+        NetworkData::new(data, id)
     }
 }

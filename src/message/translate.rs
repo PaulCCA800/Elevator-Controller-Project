@@ -1,5 +1,7 @@
 use std::fmt::Error;
 
+use crate::mem::ElevatorStatusCommand;
+
 use crate::message::{
     hardware_msg::HardwareData, 
     network_msg::NetworkData,
@@ -41,13 +43,19 @@ impl
 MemoryData
 {
     pub fn
-    memory_to_hardware()
+    memory_to_network(self, id: u64) -> Result<NetworkData, Error>
     {
-
+        match self.data
+        {
+            ElevatorStatusCommand::GetWorldView {world}
+            => Ok(NetworkData::from_mem_data(world, id)),    
+            _ => Err(Error::default())
+        }
+        
     }
 
     pub fn
-    memory_to_network()
+    memory_to_hardware() -> Result<HardwareData, Erorr>
     {
 
     }

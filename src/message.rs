@@ -191,8 +191,6 @@ pub mod message
 
     use driver_rust::elevio::poll::CallButton;
 
-    pub const SYSTEM_IDENTIFIER: [u8; 4] = [0xF0, 0x9F, 0x8D, 0x86];
-
     #[derive(Debug)]
     pub enum 
     MsgType 
