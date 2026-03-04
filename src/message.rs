@@ -108,7 +108,7 @@ Message
     {
         match hardware_data
         {
-        HardwareData::GetCallButton {call_button_data}
+        HardwareData::DataCallButton {call_button_data}
         => 
         {
             let output = MessageContent::Memory(
@@ -127,7 +127,7 @@ Message
                 }});
             Some(output)
         },
-        HardwareData::GetFloorSensor{floor}
+        HardwareData:: DataFloorSensor{floor}
         => 
         {
             let output = MessageContent::Memory(
@@ -138,7 +138,7 @@ Message
             }});
             Some(output)
         },
-        HardwareData::GetObstruction { status }
+        HardwareData::DataObstruction { status }
         => 
         {
             let output = MessageContent::Memory(
@@ -149,7 +149,7 @@ Message
             }});
             Some(output)
         },
-        HardwareData::GetStopButton { status } 
+        HardwareData::DataStopButton { status } 
         => 
         {
             let output = MessageContent::Memory(

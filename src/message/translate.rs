@@ -15,13 +15,13 @@ HardwareData
         match self
         {
             Self::DataCallButton { call_button_data } 
-                => Err(Error::default()),
+                => Ok(MemoryData::from_call_button(call_button_data, id)),
             Self::DataFloorSensor { floor } 
-                => Err(Error::default()),
+                => Ok(MemoryData::from_floor(floor, id)),
             Self::DataObstruction { status }  
-                => Err(Error::default()),
+                => Ok(MemoryData::from_obstruction(status, id)),
             Self::DataStopButton { status } 
-                => Err(Error::default()),
+                => Ok(MemoryData::from_stop_button(status, id)),
             _ => Err(Error::default()),
         }
     }
@@ -30,11 +30,29 @@ HardwareData
 impl
 NetworkData
 {
-
+    pub fn
+    network_to_memory(self, id: u64) -> Result<MemoryData, Error>
+    {
+        match self
+        {
+            
+            _ => Err(Error::default()),
+        }
+    }
 }
 
 impl
 MemoryData
 {
+    pub fn
+    memory_to_hardware()
+    {
 
+    }
+
+    pub fn
+    memory_to_network()
+    {
+        
+    }
 }
