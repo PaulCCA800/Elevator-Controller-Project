@@ -1,9 +1,17 @@
+pub mod hardware_msg;
+pub mod memory_msg;
+pub mod network_msg;
+pub mod translate;
+
+use network_msg::NetworkData;
+use hardware_msg::HardwareData;
+use memory_msg::MemoryData;
+
 use std::vec;
 
-use driver_rust::elevio::poll::CallButton;
 use serde::{Deserialize, Serialize};
 
-use crate::mem::{Direction, ElevatorStatusCommand, Order, OrderStatus, WorldView};
+use crate::mem::{Direction, ElevatorStatusCommand, Order, OrderStatus};
 
 pub struct
 Message
@@ -18,34 +26,6 @@ MessageContent
     Memory  (MemoryData),
     Network (NetworkData),
     Hardware(HardwareData),
-}
-
-pub struct
-MemoryData
-{
-    data: ElevatorStatusCommand,
-}
-
-pub struct
-NetworkData
-{
-    source_id   : [u8; 4],
-    machine_id  : u64,
-    data        : WorldView
-}
-
-pub enum
-HardwareData
-{
-    GetCallButton       {call_button_data: CallButton},
-    GetFloorSensor      {floor: u8},
-    GetStopButton       {status: bool},
-    GetObstruction      {status: bool},
-    SetMotorDirection   {dir: u8},
-    SetCallButtonLight  {floor: u8, call: u8, status: bool},
-    SetDoorLight        {status: bool},
-    SetStopLight        {status: bool},
-    SetFloorIndicator   {floor: u8},
 }
 
 impl 
@@ -333,17 +313,6 @@ pub mod message
                 None    
             }
         }
-    }
-
-
-    pub enum
-    Modules
-    {
-        Decision    = 0,
-        Hardware    = 1,
-        Memory      = 2,
-        Network     = 3,
-        Corrupted   = 99,
     }
 
     #[derive(Debug)]
