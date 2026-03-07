@@ -9,7 +9,7 @@ hardware
     use driver_rust::elevio::poll::CallButton;
 
     use crate::message::{Message, MessageContent};
-    use crate::message::hardware_msg::HardwareData;
+    use crate::message::hardware_msg::{ConvertedCallButton, HardwareData};
 
     const LOCAL_ADDR    : &str = "localhost:15657";
     const FLOOR_COUNT   : u8 = 4;
@@ -84,7 +84,9 @@ hardware
     {
         Message::new_local(
             MessageContent::Hardware(
-                HardwareData::PASS
+                HardwareData::DataCallButton { 
+                    call_button_data: ConvertedCallButton::from_call_button(cb) 
+                }
             ))
     }
 
