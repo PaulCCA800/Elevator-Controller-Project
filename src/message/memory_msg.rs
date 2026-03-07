@@ -1,5 +1,4 @@
-use crate::mem::{Direction, ElevatorStatusCommand, Order, OrderStatus, WorldView};
-use driver_rust::elevio::poll::CallButton;
+use crate::{mem::{Direction, ElevatorStatusCommand, Order, OrderStatus, WorldView}, message::hardware_msg::ConvertedCallButton};
 
 use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize)]
@@ -53,7 +52,7 @@ impl
 MemoryData
 {
     pub fn
-    from_call_button(call_button_data: CallButton, id: u64) -> Self
+    from_call_button(call_button_data: ConvertedCallButton, id: u64) -> Self
     {
         MemoryData
         {
