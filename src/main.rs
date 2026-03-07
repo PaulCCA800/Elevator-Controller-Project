@@ -10,7 +10,7 @@ mod misc;
 mod mem;
 
 use crate::mem::{Elevator, Order};
-use crate::message::Message;
+use crate::message::{Message, MessageContent};
 use crate::udpserver::udp_server::Server;
 use crate::misc::{DELAY_DUR, generate_id};
 
@@ -90,10 +90,25 @@ fn main()
 
     elevator_tasks.push(thread::spawn(move || 
     {
+        //state_matrix.edit_elevator_status();
         loop{
             {
                 while let Ok(command) = mem_placeholder_recv.try_recv(){
-                    state_matrix.edit_elevator_status(command.data);
+                    match command.data
+                    {
+                        MessageContent::Hardware(_) => 
+                        {
+                            ()
+                        },
+                        MessageContent::Memory(_) =>
+                        {
+                            ()
+                        }
+                        MessageContent::Network(_) =>
+                        {
+                            ()
+                        }
+                    }
                 }
 
                 let elevator_data: Elevator = state_matrix.get_elevator(id).clone();
