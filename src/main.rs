@@ -96,18 +96,21 @@ fn main()
                 while let Ok(command) = mem_placeholder_recv.try_recv(){
                     match command.data
                     {
-                        MessageContent::Hardware(_) => 
+                        MessageContent::Hardware(hardware_data) => 
                         {
-                            ()
+                            if let Ok(elevator_command) = hardware_data.hardware_to_memory(id)
+                            {
+                                state_matrix.edit_elevator_status(elevator_command.data);
+                            }
+                        }
+                        MessageContent::Network(network_data) =>
+                        {
+                            if let Ok(elevator_command) = network_data.network_to_memory(){
+                                state_matrix.edit_elevator_status(elevator_command.data);
+                            }
+                            
                         },
-                        MessageContent::Memory(_) =>
-                        {
-                            ()
-                        }
-                        MessageContent::Network(_) =>
-                        {
-                            ()
-                        }
+                        _ => ()
                     }
                 }
 
