@@ -1,9 +1,11 @@
 use driver_rust::elevio::poll::CallButton;
+use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize)]
 pub enum
 HardwareData
 {
-    DataCallButton      {call_button_data: CallButton},
+    //DataCallButton      {call_button_data: CallButton},
     DataFloorSensor     {floor: u8},
     DataStopButton      {status: bool},
     DataObstruction     {status: bool},

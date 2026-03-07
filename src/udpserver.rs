@@ -1,9 +1,9 @@
 pub mod
 udp_server
 {
-    use std::{net::UdpSocket, net::SocketAddr};
+    use crate::message::Message;
 
-    use crate::message::message::UdpMsg;
+    use std::{net::UdpSocket, net::SocketAddr};
 
     const DEFAULT_ADDR  : &str = "0.0.0.0:8080";
     const EMPTY_ADDR    : &str = "0.0.0.0:0";
@@ -14,7 +14,7 @@ udp_server
     {
         server      : UdpSocket,
         local_addr  : SocketAddr,
-        recv_queue  : Vec<UdpMsg>
+        recv_queue  : Vec<Message>
     }
 
     impl 
@@ -51,9 +51,9 @@ udp_server
         }
 
         pub fn
-        network_transmit(&self, mut message: UdpMsg)
+        network_transmit(&self, message: Message)
         {
-            let transmit_buffer = message.encode();
+            let transmit_buffer: Vec<u8> = bincode::serialize(&message).unwrap();
             
             if let Err(error) = self.server.send_to(&transmit_buffer, "255.255.255.255:8080"){
                 println!("Transmit Error: {error}");
@@ -78,13 +78,9 @@ udp_server
                     {
                         println!("Recived packet from {}", recv_tup.1);
                     
-                        let msg = UdpMsg::decode(local_buf_vec, recv_tup.0);
-
-                        match msg
-                        {
-                            Some(data) => {self.recv_queue.push(data);},
-                            None => ()
-                        }         
+                        if let Ok(msg) = bincode::deserialize(&local_buf_vec){
+                            self.recv_queue.push(msg);
+                        }
                     }
                 },
                 Err(_) =>
@@ -93,7 +89,7 @@ udp_server
         }
 
         pub fn
-        get_message(&mut self) -> Option<UdpMsg>
+        get_message(&mut self) -> Option<Message>
         {      
             self.recv_queue.pop()
         }

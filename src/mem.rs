@@ -1,7 +1,9 @@
 use std::{collections::{HashMap, VecDeque}};
 
+use serde::{Deserialize, Serialize};
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+
+#[derive(Serialize, Deserialize, Copy, Clone, Eq, PartialEq)]
 pub enum Direction {
     Up,
     Down,
@@ -25,14 +27,14 @@ Direction
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Copy, Clone, Eq, PartialEq)]
 pub enum OrderStatus {
     Unconfirmed,
     Confirmed,
     Completed, 
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Order {
     order_id: u64,
     floor: u8,
@@ -43,7 +45,7 @@ pub struct Order {
     assigned_to: u64,
 }
 
-#[derive(Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Elevator {
     elevator_id: u64,
     current_floor: u8,
@@ -54,12 +56,14 @@ pub struct Elevator {
     hall_orders: VecDeque<Order>,
 }
 
-#[derive(Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct WorldView {
     elevatorStatus: HashMap <u64, Elevator>,
     orderQueue: HashMap<u64, Order>,
     writeCounter: HashMap <u64, u8>,
 }
+
+#[derive(Serialize, Deserialize)]
 
 pub enum ElevatorStatusCommand {
     SetFloor        {elevator_id: u64, floor: u8},

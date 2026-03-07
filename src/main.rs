@@ -10,6 +10,7 @@ mod misc;
 mod mem;
 
 use crate::mem::{Elevator, Order, ElevatorStatusCommand};
+use crate::message::Message;
 use crate::message::message::{ElevatorUpdateMsg, ElevatorCommand, UdpMsg};
 use crate::udpserver::udp_server::Server;
 use crate::misc::{DELAY_DUR, generate_id};
@@ -25,9 +26,9 @@ fn main()
     let elevator_server_rx = elevator_server.clone();
 
     let (network_transmit_src, network_transmit_recv): 
-    (Sender<UdpMsg>, Receiver<UdpMsg>) = mpsc::channel();
+    (Sender<Message>, Receiver<Message>) = mpsc::channel();
     let (network_receive_src, network_receive_recv):
-    (Sender<UdpMsg>, Receiver<UdpMsg>) = mpsc::channel();
+    (Sender<Message>, Receiver<Message>) = mpsc::channel();
 
     // Network Tx Thread
     elevator_tasks.push(thread::spawn(move || 
@@ -36,7 +37,7 @@ fn main()
             {
                 if let Ok(server_lock) = elevator_server_rx.lock(){
                     if let Ok(channel_data) = network_transmit_recv.try_recv(){
-                        server_lock.network_transmit(channel_data);
+                        server_lock.network_transmit(channel_data);                        
                     }
                 }
             }
@@ -63,9 +64,9 @@ fn main()
 
     // Hardware Section
     let (hardware_update_src, hardware_update_recv): 
-    (Sender<ElevatorUpdateMsg>, Receiver<ElevatorUpdateMsg>) = mpsc::channel();
+    (Sender<Message>, Receiver<Message>) = mpsc::channel();
     let (hardware_command_src, hardware_command_recv):
-    (Sender<ElevatorCommand>, Receiver<ElevatorCommand>) = mpsc::channel();
+    (Sender<Message>, Receiver<Message>) = mpsc::channel();
 
     // Hardware Rx Thread
     elevator_tasks.push(thread::spawn(move || 
@@ -82,7 +83,7 @@ fn main()
     // Placeholders - Replace with other thread sources and add conversion to them
     
     let (_, mem_placeholder_recv):
-    (Sender<ElevatorStatusCommand>, Receiver<ElevatorStatusCommand>) = mpsc::channel();
+    (Sender<Message>, Receiver<Message>) = mpsc::channel();
 
     let (mem_placeholder_src, _):
     (Sender<Elevator>, Receiver<Elevator>) = mpsc::channel();

@@ -16,8 +16,8 @@ HardwareData
     {
         match self
         {
-            Self::DataCallButton { call_button_data } 
-                => Ok(MemoryData::from_call_button(call_button_data, id)),
+            //Self::DataCallButton { call_button_data } 
+            //    => Ok(MemoryData::from_call_button(call_button_data, id)),
             Self::DataFloorSensor { floor } 
                 => Ok(MemoryData::from_floor(floor, id)),
             Self::DataObstruction { status }  

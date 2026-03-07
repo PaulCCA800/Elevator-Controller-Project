@@ -1,6 +1,9 @@
 use crate::mem::{Direction, ElevatorStatusCommand, Order, OrderStatus, WorldView};
 use driver_rust::elevio::poll::CallButton;
 
+use serde::{Deserialize, Serialize};
+#[derive(Serialize, Deserialize)]
+
 pub struct
 MemoryData
 {

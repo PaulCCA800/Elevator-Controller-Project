@@ -2,6 +2,8 @@ use crate::mem::WorldView;
 
 const SYSTEM_IDENTIFIER: [u8; 4] = [0xF0, 0x9F, 0x8D, 0x86];
 
+use serde::{Deserialize, Serialize};
+#[derive(Serialize, Deserialize)]
 pub struct
 NetworkData
 {
