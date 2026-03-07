@@ -9,6 +9,8 @@ use network_msg::NetworkData;
 use hardware_msg::HardwareData;
 use memory_msg::MemoryData;
 
+const LOCAL_ID : u64 = 0;
+
 #[derive(Serialize, Deserialize)]
 pub struct
 Message
@@ -24,4 +26,17 @@ MessageContent
     Memory  (MemoryData),
     Network (NetworkData),
     Hardware(HardwareData),
+}
+
+impl 
+Message 
+{
+    pub fn
+    new_local(content: MessageContent) -> Self
+    {
+        Message { 
+            id: LOCAL_ID, 
+            data: content 
+        }
+    }    
 }

@@ -14,4 +14,5 @@ HardwareData
     SetDoorLight        {status: bool},
     SetStopLight        {status: bool},
     SetFloorIndicator   {floor: u8},
+    PASS
 }

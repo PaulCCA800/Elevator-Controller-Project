@@ -8,14 +8,15 @@ hardware
     use crossbeam_channel as cbc;
     use driver_rust::elevio::poll::CallButton;
 
-    use crate::message::message::{ElevatorUpdateMsg, ElevatorCommand};
+    use crate::message::{Message, MessageContent};
+    use crate::message::hardware_msg::HardwareData;
 
     const LOCAL_ADDR    : &str = "localhost:15657";
     const FLOOR_COUNT   : u8 = 4;
     const POOL_DUR      : Duration = Duration::from_millis(10);
     
     pub fn
-    hardware_loop(send: Sender<ElevatorUpdateMsg>, recv: Receiver<ElevatorCommand>)
+    hardware_loop(send: Sender<Message>, recv: Receiver<Message>)
     {
         let (call_button_tx, call_button_rx)    = cbc::unbounded::<elevio::poll::CallButton>(); 
         let (floor_sensor_tx, floor_sensor_rx)                  = cbc::unbounded::<u8>(); 
@@ -79,54 +80,77 @@ hardware
     }
 
     fn
-    call_button_handler(cb: CallButton) -> ElevatorUpdateMsg
+    call_button_handler(cb: CallButton) -> Message
     {
-        ElevatorUpdateMsg::CallButton(cb)
+        Message::new_local(
+            MessageContent::Hardware(
+                HardwareData::PASS
+            ))
     }
 
     fn
-    floor_sensor_handler(fs: u8) -> ElevatorUpdateMsg
+    floor_sensor_handler(fs: u8) -> Message
     {
-        ElevatorUpdateMsg::FloorSensor(fs)
+        Message::new_local(
+            MessageContent::Hardware(
+                HardwareData::DataFloorSensor { floor: fs }
+            )
+        )
     }
 
     fn
-    stop_button_handler(sb: bool) -> ElevatorUpdateMsg
+    stop_button_handler(sb: bool) -> Message
     {
-        ElevatorUpdateMsg::StopButton(sb)
+        Message::new_local(
+            MessageContent::Hardware(
+                HardwareData::DataStopButton { status: sb }
+            )
+        )
     }
 
     fn
-    obstruction_handler(ob: bool) -> ElevatorUpdateMsg
+    obstruction_handler(ob: bool) -> Message
     {
-        ElevatorUpdateMsg::Obstruction(ob)
+        Message::new_local(
+            MessageContent::Hardware(
+                HardwareData::DataObstruction { status: ob }
+            )
+        )
     }
 
     fn
-    elevator_command_execute(elevator: &elevio::elev::Elevator, command: ElevatorCommand)
+    elevator_command_execute(elevator: &elevio::elev::Elevator, command: Message)
     {
         match command
         {
-            ElevatorCommand::SetMotorDirection{dir}   => 
+            Message{id, data: MessageContent::Hardware(content)} => 
             {
-                elevator.motor_direction(dir);
-            },
-            ElevatorCommand::SetCallButtonLight{floor, call, status}  => 
-            {
-                elevator.call_button_light(floor, call, status);
-            },
-            ElevatorCommand::SetDoorLight{status}        => 
-            {
-                elevator.door_light(status);
-            },
-            ElevatorCommand::SetStopLight{status}        => 
-            {
-                elevator.stop_button_light(status);
-            },
-            ElevatorCommand::SetFloorIndicator{floor}      => 
-            {
-                elevator.floor_indicator(floor);
+                match content
+                {
+                    HardwareData::SetMotorDirection { dir } =>
+                    {
+                        elevator.motor_direction(dir);
+                    },
+                    HardwareData::SetCallButtonLight { floor, call, status } =>
+                    {
+                        elevator.call_button_light(floor, call, status);
+                    },
+                    HardwareData::SetDoorLight { status } =>
+                    {
+                        elevator.door_light(status);
+                    }
+                    HardwareData::SetStopLight { status } =>
+                    {
+                        elevator.stop_button_light(status);
+                    },
+                    HardwareData::SetFloorIndicator { floor } =>
+                    {
+                        elevator.floor_indicator(floor);
+                    }
+                    _ => (),
+                }
             }
+            _ => (),
         }
     }
 

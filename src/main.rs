@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{self, Sender, Receiver};
-use std::thread::{self, JoinHandle, sleep};
+use std::thread::{self, JoinHandle};
 
 mod message;
 mod hardware;
@@ -9,9 +9,8 @@ mod udpserver;
 mod misc;
 mod mem;
 
-use crate::mem::{Elevator, Order, ElevatorStatusCommand};
+use crate::mem::{Elevator, Order};
 use crate::message::Message;
-use crate::message::message::{ElevatorUpdateMsg, ElevatorCommand, UdpMsg};
 use crate::udpserver::udp_server::Server;
 use crate::misc::{DELAY_DUR, generate_id};
 
@@ -53,7 +52,6 @@ fn main()
                 if let Ok(mut server_lock) = elevator_server_tx.lock(){
                     server_lock.network_recieve();
                     if let Some(rx_message) = server_lock.get_message(){
-                        println!("Received Message: {:?}", rx_message);
                         network_receive_src.send(rx_message).unwrap();
                     }
                 }
@@ -95,7 +93,7 @@ fn main()
         loop{
             {
                 while let Ok(command) = mem_placeholder_recv.try_recv(){
-                    state_matrix.edit_elevator_status(command);
+                    state_matrix.edit_elevator_status(command.data);
                 }
 
                 let elevator_data: Elevator = state_matrix.get_elevator(id).clone();
@@ -105,30 +103,6 @@ fn main()
                     Err(_)  => println!("Transmit Failed, elevator {id}."),
                 }
             }
-            thread::sleep(DELAY_DUR);
-        }
-    }));
-
-    elevator_tasks.push(thread::spawn(move || 
-    {
-        let mut num: u16 = 0;
-        
-        loop
-        {
-            {
-                num += 1;
-                let mut data: Vec<u8> = Vec::new();
-                data.push(1);
-                data.push(2);
-                data.push(3);
-                data.push(4);
-                let msg = UdpMsg::new(0, num, message::message::MsgType::Broadcast, data);
-                network_transmit_src.send(msg).unwrap();
-            }
-            thread::sleep(DELAY_DUR);
-            thread::sleep(DELAY_DUR);
-            thread::sleep(DELAY_DUR);
-            thread::sleep(DELAY_DUR);
             thread::sleep(DELAY_DUR);
         }
     }));
