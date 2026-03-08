@@ -1,52 +1,41 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::io::Write;
 use std::process::{Command, Stdio};
 use serde::{Serialize, Deserialize};
 
-use crate::mem::{WorldView, Elevator, Order, ElevatorStatusCommand, OrderQueueCommand};
+use crate::mem::{ElevatorDirection, OrderDirection, WorldView, Order, OrderType, Behaviour};
 
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum Behaviour {
-    Idle,
-    Moving,
-    DoorOpen,
-}
-
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum Direction {
-    Up,
-    Down,
-    Stop,
-}
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ElevatorState {
     behaviour: Behaviour,
     floor: u8,
-    direction: Direction,
+    direction: ElevatorDirection,
     cab_requests: Vec<bool>,
 }
+
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Input {
-    hall_orders: Vec<[bool; 2]>,
+    hall_requests: Vec<[bool; 2]>,
     states: HashMap<String, ElevatorState>,
 }
 
+
+pub type Output = HashMap<String, Vec<[bool; 2]>>;
+
+
 impl Input {
-    pub fn new(hall_orders: Vec<[bool; 2]>, states: HashMap<String, ElevatorState>) -> Self {
+    pub fn new(hall_requests: Vec<[bool; 2]>, states: HashMap<String, ElevatorState>) -> Self {
         Self{
-            hall_orders,
+            hall_requests,
             states,
         }
     }
 }
+
 
 impl ElevatorState {
     pub fn new(behaviour: Behaviour, floor: u8, direction: Direction, cab_requests: Vec<bool>) -> Self {
@@ -59,9 +48,8 @@ impl ElevatorState {
     }
 }
 
-pub type Output = HashMap<String, Vec<[bool; 2]>>;
 
-pub fn assigner(input: &Input, exe_path: &String) -> anyhow::Result<Output> {
+fn assigner(input: &Input, exe_path: &String) -> anyhow::Result<Output> {
     let mut hall_assigner = Command::new(exe_path)
     .stdin(Stdio::piped())
     .stdout(Stdio::piped())
@@ -84,11 +72,83 @@ pub fn assigner(input: &Input, exe_path: &String) -> anyhow::Result<Output> {
     Ok(assignments)
 }
 
-pub fn make_elevator_decision(lastWorldView: WorldView) -> ElevatorStatusCommand {
-    let states: HashMap<String, ElevatorState> = HashMap::new();
-    for (id, elevator) in &lastWorldView.elevatorStatus {
-        let id_string: String = id.to_string();
-        let state: ElevatorState = ElevatorState::new(elevator.direction, elevator.current_floor, 
-                                                      elevator.direction, elevator.cab_orders);
+
+fn assigner_output_to_assigned_orders(orderMap: HashMap<String, Vec<[bool; 2]>>) -> HashMap<u64, VecDeque<Order>>{
+
+    let mut assignedOrdersByID: HashMap<u64, VecDeque<Order>> = HashMap::new(); 
+    for (elevator, orders) in orderMap{
+        let id: u64 = match elevator.parse() {
+            Ok(elevatorID) => elevatorID,
+            Err(e) => {print!("Parse failed {}. Returning empty hashmap", e);
+                                      return HashMap::new();}
+        };
+        let mut assignedOrders: VecDeque<Order> = VecDeque::new();  
+        let mut floor: u8 = 0;
+        for entry in orders {
+            if entry[0] == true {
+                let up_order: Order = Order::new(floor, OrderType::Hall, 
+                                                 OrderDirection::Up);
+                assignedOrders.push_back(up_order);
+            }
+            if entry[1] == true {
+                let down_order: Order  = Order::new(floor, OrderType::Hall, 
+                                                    OrderDirection::Down);
+                assignedOrders.push_back(down_order);
+            }
+            floor = floor + 1;
+        };
+        assignedOrdersByID.insert(id, assignedOrders);
     }
+
+    return assignedOrdersByID;
+}  
+
+
+fn hall_order_format_converter(order_queue: &VecDeque<Order>) -> Vec<[bool; 2]>{
+    let mut queue: Vec<[bool; 2]> = Vec::new();
+    for order in order_queue{
+        let dir_idx = match order.get_direction() {
+            OrderDirection::Up => 0,
+            OrderDirection::Down => 1,
+        };
+        queue[order.get_floor().clone() as usize][dir_idx] = true;
+    }
+    return queue
+}
+
+
+fn cab_order_format_converter(order_queue: &VecDeque<Order>) -> Vec<bool>{
+    let mut queue: Vec<bool> = Vec::new();
+    for order in order_queue {
+        queue[order.get_floor().clone() as usize] = true;
+    }
+    return queue
+}
+
+
+pub fn assign_hall_orders(last_world_view: WorldView) -> HashMap<u64, VecDeque<Order>> {
+
+    let states: HashMap<String, ElevatorState> = HashMap::new();
+
+    for (id, elevator) in last_world_view.get_elevator_statuses() {
+        let id_string: String = id.to_string();
+        let state: ElevatorState = ElevatorState::new(elevator.get_behaviour().clone(), elevator.get_floor().clone(), 
+                                                      elevator.get_direction().clone(), 
+                                                      cab_order_format_converter(elevator.get_cab_requests()));
+    states.insert(id_string, state);
+    }
+
+    let queue: Vec<[bool; 2]> = hall_order_format_converter(last_world_view.get_order_queue());
+ 
+    let input: Input = Input::new(queue, states); 
+    let path_to_assigner: String = "../Project-resources/cost_fns/hall_request_assigner".to_string(); 
+
+    let assignedHallOrders = match assigner(&input, &path_to_assigner) {
+        Ok(assignments) => {assignments}
+        Err(_) => {println!("Failed to retrieve assignments from assigner. Constructing empty hashmap.");
+                   HashMap::new()}
+    };
+
+    return assigner_output_to_assigned_orders(assignedHallOrders);
+
 }

@@ -1,10 +1,35 @@
 use std::{collections::{HashMap, VecDeque}};
+use serde::{Deserialize, Serialize};
+use rand::Rng;
 
+use crate::misc::generate_id;
 
-#[derive(Copy, Clone, Eq, PartialEq)]
-pub enum Direction {
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Behaviour {
+    Idle,
+    Moving,
+    DoorOpen,
+}
+
+#[derive(Clone)]
+pub enum OrderType {
+    Cab,
+    Hall,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ElevatorDirection {
     Up,
     Down,
+    Stop,
+}
+
+#[derive(Clone, Debug)]
+pub enum OrderDirection {
+    Up,
+    Down
 }
 
 #[derive(Copy, Clone, Eq, PartialEq)]
@@ -18,29 +43,26 @@ pub enum OrderStatus {
 pub struct Order {
     order_id: u64,
     floor: u8,
-    cab: bool,
-    direction: Direction,
-    orderStatus: OrderStatus,
+    order_type: OrderType,
+    direction: OrderDirection,
+    order_status: OrderStatus,
     ack_barrier: Vec<u64>,
-    assigned_to: u64,
 }
 
 #[derive(Clone)]
 pub struct Elevator {
     elevator_id: u64,
-    current_floor: u8,
-    direction: Direction,
-    door_open: bool,
-    stop: bool,
-    cab_orders: VecDeque<Order>,
-    hall_orders: VecDeque<Order>,
+    behaviour: Behaviour,
+    floor: u8,
+    direction: ElevatorDirection,
+    cab_requests: VecDeque<Order>,
 }
 
 #[derive(Clone)]
 pub struct WorldView {
-    elevatorStatus: HashMap <u64, Elevator>,
-    orderQueue: HashMap<u64, Order>,
-    writeCounter: HashMap <u64, u8>,
+    elevator_statuses: HashMap <u64, Elevator>,
+    hall_order_queue: VecDeque<Order>,
+    write_counter: HashMap <u64, u8>,
 }
 
 pub enum ElevatorStatusCommand {
@@ -66,21 +88,51 @@ pub enum OrderQueueCommand {
 }
 
 impl Order {
-    pub fn new(order_id: u64, floor: u8, cab: bool, direction: Direction, 
-               orderStatus: OrderStatus, ack_barrier: Vec<u64>, assigned_to: u64) -> Self{
+    pub fn new(floor: u8, order_type: OrderType, direction: OrderDirection) -> Self{
         Self{
-            order_id,
+            order_id: Self::generate_order_ID(),
             floor,
-            cab,
+            order_type,
             direction,
-            orderStatus,
-            ack_barrier,
-            assigned_to,
+            order_status: OrderStatus::Unconfirmed,
+            ack_barrier: Vec::new(),
         }
     }
 
-    pub fn set_status(&mut self, status: OrderStatus) {
-        self.orderStatus = status;
+    fn generate_order_ID() -> u64 {
+        return rand::random();
+    }
+
+    pub fn get_order_id(&self) -> &u64 {
+        return &self.order_id
+    }
+
+    pub fn get_floor(&self) -> &u8 {
+        return &self.floor
+    }
+
+    pub fn get_order_type(&self) -> &OrderType {
+        return &self.order_type
+    }
+
+    pub fn get_direction(&self) -> &OrderDirection {
+        return &self.direction
+    }
+
+    pub fn get_order_status(&self) -> &OrderStatus {
+        return &self.order_status
+    }
+    
+    pub fn set_order_status(&mut self, status: OrderStatus) {
+        self.order_status = status;
+    }
+
+    pub fn get_ack_barrier(&self) -> &Vec<u64>{
+        return &self.ack_barrier
+    }
+
+    pub fn get_mut_ack_barrier(&mut self) -> &mut Vec<u64>{
+        return &mut self.ack_barrier
     }
 
     pub fn set_ack_barrier(&mut self, barrier: Vec<u64>) {
@@ -90,96 +142,100 @@ impl Order {
     pub fn insert_into_ack_barrier(&mut self, elevator_id: u64) {
         self.ack_barrier.push(elevator_id);
     }
-
-    pub fn assign_to_elevator(&mut self, elevator_id: u64){
-        self.assigned_to = elevator_id;
-    }
 }
 
 impl Elevator{
-    pub fn new(elevator_id: u64, current_floor: u8, direction: Direction, 
-               obstruction: bool, stop: bool, cab_orders: VecDeque<Order>, 
-               hall_orders: VecDeque<Order>) -> Self{
+    pub fn new(elevator_id: u64, floor: u8) -> Self{
         Self{
             elevator_id,
-            current_floor,
-            direction,
-            door_open,
-            stop,
-            cab_orders,
-            hall_orders,
+            behaviour: Behaviour::Idle,
+            floor,
+            direction: ElevatorDirection::Stop,
+            cab_requests: Self::initialize_cab_requests(),
         }
     }
 
-    pub fn get_hall_orders(&self) -> &VecDeque<Order>{
-        &self.hall_orders
+    fn initialize_cab_requests() -> VecDeque<Order>{
+        return VecDeque::new();
     }
 
-    pub fn get_cab_orders(&self) -> &VecDeque<Order>{
-        &self.cab_orders
+    pub fn get_elevator_id(&self) -> &u64{
+        return &self.elevator_id
     }
 
-    fn set_current_floor(&mut self, floor: u8) {
-        self.current_floor = floor;
+    pub fn get_behaviour(&self) -> &Behaviour{
+        return &self.behaviour
     }
 
-    fn set_direction(&mut self, dir: Direction) {
+    pub fn get_floor(&self) -> &u8{
+        return &self.floor
+    }
+
+    pub fn set_current_floor(&mut self, floor: u8) {
+        self.floor = floor;
+    }
+
+    pub fn get_direction(&mut self) -> &Direction {
+        return &self.direction
+    }
+
+    pub fn set_direction(&mut self, dir: Direction) {
         self.direction = dir;
     }
 
-    fn set_obstruction(&mut self, obs: bool) {
-        self.door_open = obs;
+    pub fn get_cab_requests(&self) -> &VecDeque<Order>{
+        &self.cab_requests
     }
 
-    fn set_stop(&mut self, stop: bool) {
-        self.stop = stop;
-    }
-
-    fn set_cab_orders(&mut self, orders: VecDeque<Order>) {
-        self.cab_orders = orders;
-    }
-
-    fn set_hall_orders(&mut self, orders: VecDeque<Order>) {
-        self.hall_orders = orders;
+    pub fn set_cab_requests(&mut self, orders: VecDeque<Order>) {
+        self.cab_requests = orders;
     }
 
     pub fn add_cab_order(&mut self, order: Order) {
-        self.cab_orders.push_back(order);
+        self.cab_requests.push_back(order);
     }
 
     pub fn remove_cab_order(&mut self) {
-        self.cab_orders.pop_front();
-    }
-
-    pub fn add_hall_order(&mut self, order: Order) {
-        self.hall_orders.push_back(order);
-    }
-
-    pub fn remove_hall_order(&mut self){
-        self.hall_orders.pop_front();
-    }    
-    
+        self.cab_requests.pop_front();
+    }   
 }
 
 impl WorldView {
-    pub fn new(elevatorStatus: HashMap <u64, Elevator>, orderQueue: HashMap<u64, Order>, 
-               writeCounter: HashMap<u64, u8>) -> Self{
+    pub fn new(my_elevator_id: u64) -> Self{
         
         Self{
-            elevatorStatus,
-            orderQueue,
-            writeCounter,
+            elevator_statuses: Self::initialize_elevator_statuses(my_elevator_id),
+            hall_order_queue: VecDeque::new(),
+            write_counter: Self::initialize_write_counter(my_elevator_id),
             }
+    }
+
+    //initializers
+
+    fn initialize_elevator_statuses(id: u64) -> HashMap<u64, Elevator>{
+        let mut initial_elevator_statuses = HashMap::new();
+        initial_elevator_statuses.insert(id, Elevator::new(id, 1));
+        return initial_elevator_statuses
+    }
+
+    fn initialize_write_counter(id: u64) -> HashMap<u64, u8>{
+        let mut initial_write_counter = HashMap::new();
+        initial_write_counter.insert(id, 0 as u8);
+        return initial_write_counter
     }
 
     //interface for elevators 
 
+    pub fn get_elevator_statuses(&self) -> &HashMap<u64, Elevator>{
+        return &self.elevator_statuses
+    }
+
     pub fn get_elevator(&self, elevator_id: u64) -> &Elevator {
-        self.elevatorStatus.get(&elevator_id).expect(&format!("get error: no elevator found at {}.", elevator_id))
+        self.elevator_statuses.get(&elevator_id).expect(&format!("get error: no elevator found at {}.", elevator_id))
     }
 
     pub fn get_mut_elevator(&mut self, elevator_id: u64) -> &mut Elevator {
-        self.elevatorStatus.get_mut(&elevator_id).expect(&format!("get_mut error: no elevator found at {}.", elevator_id))
+        self.elevator_statuses.get_mut(&elevator_id).expect(&format!("get_mut error: no elevator found at {}.", elevator_id))
     }
 
     pub fn set_elev_current_floor(&mut self, elevator_id: u64, floor: u8) {
@@ -188,10 +244,6 @@ impl WorldView {
 
     pub fn set_elev_direction(&mut self, elevator_id: u64, direction: Direction) {
         self.get_mut_elevator(elevator_id).set_direction(direction);
-    }
-
-    pub fn set_elev_obstruction(&mut self, elevator_id: u64, obstruction: bool) {
-        self.get_mut_elevator(elevator_id).set_obstruction(obstruction);
     }
 
     pub fn set_elev_stop(&mut self, elevator_id: u64, stop: bool) {
@@ -223,6 +275,10 @@ impl WorldView {
     }
 
     //interface for order queue
+
+    pub fn get_order_queue(&mut self) -> &VecDeque<Order>{
+        return &self.hall_order_queue
+    }
 
     pub fn get_order(&self, order_id: u64) -> &Order{
         self.orderQueue.get(&order_id).expect(&format!("get error: no order found at {}.", order_id))
