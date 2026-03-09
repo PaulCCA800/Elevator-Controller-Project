@@ -12,13 +12,19 @@ pub enum Behaviour {
     DoorOpen,
 }
 
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub enum OrderType {
     Cab,
     Hall,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Copy, Clone)]
+pub enum Obstruction {
+    Obstructed,
+    Clear,
+}
+
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ElevatorDirection {
     Up,
@@ -26,10 +32,10 @@ pub enum ElevatorDirection {
     Stop,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum OrderDirection {
     Up,
-    Down
+    Down,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq)]
@@ -52,7 +58,9 @@ pub struct Order {
 #[derive(Clone)]
 pub struct Elevator {
     elevator_id: u64,
+    session_id: u64,
     behaviour: Behaviour,
+    obstruction: Obstruction,
     floor: u8,
     direction: ElevatorDirection,
     cab_requests: VecDeque<Order>,
@@ -61,21 +69,20 @@ pub struct Elevator {
 #[derive(Clone)]
 pub struct WorldView {
     elevator_statuses: HashMap <u64, Elevator>,
-    hall_order_queue: VecDeque<Order>,
+    hall_order_queue: HashMap<u64, Order>,
     write_counter: HashMap <u64, u8>,
 }
 
+pub type HallOrders = VecDeque<Order>;
+
 pub enum ElevatorStatusCommand {
+    SetBehaviour {elevator_id: u64, behavior: Behaviour},
+    SetObstruction {elevator_id: u64, obstruction: Obstruction},
     SetFloor {elevator_id: u64, floor: u8},
-    SetDirection {elevator_id: u64, dir: Direction},
-    SetObstruction {elevator_id: u64, obs: bool},
-    SetStop {elevator_id: u64, stop: bool},
-    SetCabOrders {elevator_id: u64, orders: VecDeque<Order>},
-    SetHallOrders {elevator_id: u64, orders: VecDeque<Order>},
-    AddCabOrder{elevator_id: u64, order: Order},
-    RemoveCabOrder {elevator_id: u64},
-    AddHallOrder{elevator_id: u64, order: Order},
-    RemoveHallOrder {elevator_id: u64},
+    SetDirection {elevator_id: u64, dir: ElevatorDirection},
+    SetCabRequests {elevator_id: u64, orders: VecDeque<Order>},
+    AddCabRequest {elevator_id: u64, order: Order},
+    RemoveCabRequest {elevator_id: u64},
 }
 
 pub enum OrderQueueCommand {
@@ -84,7 +91,6 @@ pub enum OrderQueueCommand {
     SetOrderStatus{order_id: u64, status: OrderStatus},
     SetAckBarrier{order_id: u64, barrier: Vec<u64>},
     InsertAckBarrier{order_id: u64, elevator_id: u64},
-    AssignOrder{order_id: u64, elevator_id: u64},
 }
 
 impl Order {
@@ -145,11 +151,13 @@ impl Order {
 }
 
 impl Elevator{
-    pub fn new(elevator_id: u64, floor: u8) -> Self{
+    pub fn new() -> Self{
         Self{
-            elevator_id,
+            elevator_id: generate_id(),
+            session_id: Self::generate_session_id(),
             behaviour: Behaviour::Idle,
-            floor,
+            obstruction: Obstruction::Clear,
+            floor: 1,
             direction: ElevatorDirection::Stop,
             cab_requests: Self::initialize_cab_requests(),
         }
@@ -159,27 +167,47 @@ impl Elevator{
         return VecDeque::new();
     }
 
+    fn generate_session_id() -> u64 {
+        return rand::random();
+    }
+
     pub fn get_elevator_id(&self) -> &u64{
         return &self.elevator_id
+    }
+
+    pub fn get_session_id(&self) -> &u64{
+        return &self.session_id
     }
 
     pub fn get_behaviour(&self) -> &Behaviour{
         return &self.behaviour
     }
 
+    pub fn set_behavior(&mut self, behaviour: Behaviour) {
+        self.behaviour = behaviour
+    }
+
+    pub fn get_obstruction(&self) -> &Obstruction{
+        return &self.obstruction
+    }
+
+     pub fn set_obstruction(&mut self, obstruction: Obstruction) {
+        self.obstruction = obstruction
+    }
+
     pub fn get_floor(&self) -> &u8{
         return &self.floor
     }
 
-    pub fn set_current_floor(&mut self, floor: u8) {
+    pub fn set_floor(&mut self, floor: u8) {
         self.floor = floor;
     }
 
-    pub fn get_direction(&mut self) -> &Direction {
+    pub fn get_direction(&mut self) -> &ElevatorDirection {
         return &self.direction
     }
 
-    pub fn set_direction(&mut self, dir: Direction) {
+    pub fn set_direction(&mut self, dir: ElevatorDirection) {
         self.direction = dir;
     }
 
@@ -191,11 +219,11 @@ impl Elevator{
         self.cab_requests = orders;
     }
 
-    pub fn add_cab_order(&mut self, order: Order) {
+    pub fn add_cab_request(&mut self, order: Order) {
         self.cab_requests.push_back(order);
     }
 
-    pub fn remove_cab_order(&mut self) {
+    pub fn remove_cab_request(&mut self) {
         self.cab_requests.pop_front();
     }   
 }
@@ -205,7 +233,7 @@ impl WorldView {
         
         Self{
             elevator_statuses: Self::initialize_elevator_statuses(my_elevator_id),
-            hall_order_queue: VecDeque::new(),
+            hall_order_queue: HashMap::new(),
             write_counter: Self::initialize_write_counter(my_elevator_id),
             }
     }
@@ -214,7 +242,7 @@ impl WorldView {
 
     fn initialize_elevator_statuses(id: u64) -> HashMap<u64, Elevator>{
         let mut initial_elevator_statuses = HashMap::new();
-        initial_elevator_statuses.insert(id, Elevator::new(id, 1));
+        initial_elevator_statuses.insert(id, Elevator::new());
         return initial_elevator_statuses
     }
 
@@ -227,77 +255,81 @@ impl WorldView {
     //interface for elevators 
 
     pub fn get_elevator_statuses(&self) -> &HashMap<u64, Elevator>{
-        return &self.elevator_statuses
+        return &self.elevator_statuses;
     }
 
     pub fn get_elevator(&self, elevator_id: u64) -> &Elevator {
-        self.elevator_statuses.get(&elevator_id).expect(&format!("get error: no elevator found at {}.", elevator_id))
+        return self.elevator_statuses.get(&elevator_id)
+        .expect(&format!("get error: no elevator found at {}.", elevator_id));
     }
 
     pub fn get_mut_elevator(&mut self, elevator_id: u64) -> &mut Elevator {
-        self.elevator_statuses.get_mut(&elevator_id).expect(&format!("get_mut error: no elevator found at {}.", elevator_id))
+        return self.elevator_statuses.get_mut(&elevator_id)
+        .expect(&format!("get_mut error: no elevator found at {}.", elevator_id));
     }
 
     pub fn set_elev_current_floor(&mut self, elevator_id: u64, floor: u8) {
-        self.get_mut_elevator(elevator_id).set_current_floor(floor);
+        self.get_mut_elevator(elevator_id).set_floor(floor);
     }
 
-    pub fn set_elev_direction(&mut self, elevator_id: u64, direction: Direction) {
+    pub fn set_elev_direction(&mut self, elevator_id: u64, direction: ElevatorDirection) {
         self.get_mut_elevator(elevator_id).set_direction(direction);
     }
 
-    pub fn set_elev_stop(&mut self, elevator_id: u64, stop: bool) {
-        self.get_mut_elevator(elevator_id).set_stop(stop);
+    pub fn get_elev_behaviour(&self, elevator_id: u64) -> &Behaviour{
+        return &self.get_elevator(elevator_id).get_behaviour();
+    }
+
+    pub fn set_elev_behaviour(&mut self, elevator_id: u64, behaviour: Behaviour) {
+        self.get_mut_elevator(elevator_id).set_behavior(behaviour);
+    }
+
+    pub fn get_elev_obstruction(&self, elevator_id: u64) -> &Obstruction{
+        return &self.get_elevator(elevator_id).get_obstruction();
+    }
+
+    pub fn set_elev_obstruction(&mut self, elevator_id: u64, obstruction: Obstruction) {
+        self.get_mut_elevator(elevator_id).set_obstruction(obstruction);
     }
 
     pub fn set_elev_cab_orders(&mut self, elevator_id: u64, orders: VecDeque<Order>) {
-        self.get_mut_elevator(elevator_id).set_cab_orders(orders);
-    }
-
-    pub fn set_elev_hall_orders(&mut self, elevator_id: u64, orders: VecDeque<Order>) {
-        self.get_mut_elevator(elevator_id).set_hall_orders(orders);
+        self.get_mut_elevator(elevator_id).set_cab_requests(orders);
     }
 
     pub fn add_elev_cab_order(&mut self, elevator_id: u64, order: Order) {
-        self.get_mut_elevator(elevator_id).add_cab_order(order);
+        self.get_mut_elevator(elevator_id).add_cab_request(order);
     }
 
     pub fn remove_elev_cab_order(&mut self, elevator_id: u64) {
-        self.get_mut_elevator(elevator_id).remove_cab_order();
-    }
-
-    pub fn add_elev_hall_order(&mut self, elevator_id: u64, order: Order) {
-        self.get_mut_elevator(elevator_id).add_hall_order(order);
-    }
-
-    pub fn remove_elev_hall_order(&mut self, elevator_id: u64) {
-        self.get_mut_elevator(elevator_id).remove_hall_order();
+        self.get_mut_elevator(elevator_id).remove_cab_request();
     }
 
     //interface for order queue
 
-    pub fn get_order_queue(&mut self) -> &VecDeque<Order>{
+    pub fn get_order_queue(&mut self) -> &HashMap<u64, Order>{
         return &self.hall_order_queue
     }
 
     pub fn get_order(&self, order_id: u64) -> &Order{
-        self.orderQueue.get(&order_id).expect(&format!("get error: no order found at {}.", order_id))
+        return self.hall_order_queue.get(&order_id)
+        .expect(&format!("get error: no order found at {}.", order_id));
     }
 
     pub fn get_mut_order(&mut self, order_id: u64) -> &mut Order{
-        self.orderQueue.get_mut(&order_id).expect(&format!("get_mut error: no order found at {}.", order_id))
+        return self.hall_order_queue.get_mut(&order_id)
+        .expect(&format!("get_mut error: no order found at {}.", order_id));
     }
 
     pub fn add_to_queue(&mut self, order: Order) {
-        self.orderQueue.insert(order.order_id, order);
+        self.hall_order_queue.insert(order.order_id, order);
     }
 
     pub fn remove_from_queue(&mut self, order_id: u64) {
-        self.orderQueue.remove(&order_id);
+        self.hall_order_queue.remove(&order_id);
     }
 
     pub fn set_order_status(&mut self, order_id: u64, status: OrderStatus) {
-        self.get_mut_order(order_id).set_status(status);
+        self.get_mut_order(order_id).set_order_status(status);
     }
 
     pub fn set_order_ack_barrier(&mut self, order_id: u64, barrier: Vec<u64>) {
@@ -306,10 +338,6 @@ impl WorldView {
 
     pub fn insert_into_order_ack_barrier(&mut self, order_id: u64, elevator_id: u64) {
         self.get_mut_order(order_id).insert_into_ack_barrier(elevator_id);
-    }
-
-    pub fn assign_order_to_elevator(&mut self, order_id: u64, elevator_id: u64) {
-        self.get_mut_order(order_id).assign_to_elevator(elevator_id);
     }
 
     //editing functions 
@@ -322,31 +350,20 @@ impl WorldView {
             ElevatorStatusCommand::SetDirection {elevator_id, dir} 
             => self.set_elev_direction(elevator_id, dir),
 
-            ElevatorStatusCommand::SetObstruction {elevator_id, obs} 
-            => self.set_elev_obstruction(elevator_id, obs),
+            ElevatorStatusCommand::SetObstruction {elevator_id, obstruction} 
+            => self.set_elev_obstruction(elevator_id, obstruction),
 
-            ElevatorStatusCommand::SetStop {elevator_id, stop} 
-            => self.set_elev_stop(elevator_id, stop),
+            ElevatorStatusCommand::SetBehaviour {elevator_id, behavior} 
+            => self.set_elev_behaviour(elevator_id, behavior),
 
-            ElevatorStatusCommand::SetCabOrders {elevator_id, orders} 
+            ElevatorStatusCommand::SetCabRequests {elevator_id, orders} 
             => self.set_elev_cab_orders(elevator_id, orders),
 
-            ElevatorStatusCommand::SetHallOrders {elevator_id, orders} 
-            => self.set_elev_hall_orders(elevator_id, orders), 
-
-            ElevatorStatusCommand::AddCabOrder {elevator_id, order}
+            ElevatorStatusCommand::AddCabRequest {elevator_id, order}
             =>self.add_elev_cab_order(elevator_id, order),
 
-            ElevatorStatusCommand::RemoveCabOrder {elevator_id}
+            ElevatorStatusCommand::RemoveCabRequest {elevator_id}
             =>self.remove_elev_cab_order(elevator_id),
-
-            ElevatorStatusCommand::AddHallOrder {elevator_id, order}
-            =>self.add_elev_hall_order(elevator_id, order),
-
-            ElevatorStatusCommand::RemoveHallOrder {elevator_id}
-            =>self.remove_elev_hall_order(elevator_id),
-   
-
         }
     }
 
@@ -366,15 +383,18 @@ impl WorldView {
 
             OrderQueueCommand::InsertAckBarrier {order_id, elevator_id}
             => self.insert_into_order_ack_barrier(order_id, elevator_id),
-
-            OrderQueueCommand::AssignOrder {order_id, elevator_id}
-            => self.assign_order_to_elevator(order_id, elevator_id),
         }
     }
 
     pub fn increment_write_counter(&mut self, elevator_id: &u64) {
-        *self.writeCounter.entry(*elevator_id).or_insert(0) += 1;
+        *self.write_counter.entry(*elevator_id).or_insert(0) += 1;
     }
+
+    pub fn update_my_world_view(){
+
+    }
+
+    pub fn 
 
 }
 

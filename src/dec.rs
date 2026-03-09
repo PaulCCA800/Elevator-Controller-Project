@@ -38,7 +38,7 @@ impl Input {
 
 
 impl ElevatorState {
-    pub fn new(behaviour: Behaviour, floor: u8, direction: Direction, cab_requests: Vec<bool>) -> Self {
+    pub fn new(behaviour: Behaviour, floor: u8, direction: ElevatorDirection, cab_requests: Vec<bool>) -> Self {
         Self {
             behaviour,
             floor,
@@ -132,10 +132,12 @@ pub fn assign_hall_orders(last_world_view: WorldView) -> HashMap<u64, VecDeque<O
 
     for (id, elevator) in last_world_view.get_elevator_statuses() {
         let id_string: String = id.to_string();
-        let state: ElevatorState = ElevatorState::new(elevator.get_behaviour().clone(), elevator.get_floor().clone(), 
+        let cab_requests:Vec<bool> = cab_order_format_converter(elevator.get_cab_requests());
+        let state: ElevatorState = ElevatorState::new(elevator.get_behaviour().clone(), 
+                                                      elevator.get_floor().clone(), 
                                                       elevator.get_direction().clone(), 
-                                                      cab_order_format_converter(elevator.get_cab_requests()));
-    states.insert(id_string, state);
+                                                      cab_requests);
+        states.insert(id_string, state);
     }
 
     let queue: Vec<[bool; 2]> = hall_order_format_converter(last_world_view.get_order_queue());
