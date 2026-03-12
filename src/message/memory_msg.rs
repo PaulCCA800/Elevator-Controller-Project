@@ -1,20 +1,27 @@
-use std::convert::TryFrom;
+use std::{convert::TryFrom, os::linux::raw::stat};
 use serde::{Deserialize, Serialize};
 
-use crate::{mem::{Direction, ElevatorStatusCommand, Order, OrderStatus}, message::{LOCAL_ID, hardware_msg::{HardwareData}, network_msg::NetworkData}};
+use crate::{mem::{ElevatorDirection, ElevatorStatusCommand, Obstruction, Order, OrderStatus}, message::{LOCAL_ID, hardware_msg::HardwareData, network_msg::NetworkData}};
 
 fn is_cab(call: u8) -> bool {
     call == 2
 }
 
-fn get_dir(call: u8) -> Direction {
+fn get_dir(call: u8) -> ElevatorDirection {
     match call {
-        2 => Direction::Inherit,
-        1 => Direction::Down,
-        _ => Direction::Up,
+        2 => ElevatorDirection::Stop,
+        1 => ElevatorDirection::Down,
+        _ => ElevatorDirection::Up,
     }
 }
 
+fn get_obstruction(obs: bool) -> Obstruction
+{
+    match obs {
+        true => Obstruction::Obstructed,
+        false => Obstruction::Clear
+    }
+}
 #[derive(Serialize, Deserialize)]
 pub struct MemoryData {
     pub data: ElevatorStatusCommand,
@@ -25,6 +32,7 @@ impl TryFrom<HardwareData> for MemoryData {
 
     fn try_from(data: HardwareData) -> Result<Self, Self::Error> {
         match data {
+            /*
             HardwareData::CallButton(call_button) => Ok(Self {
                 data: ElevatorStatusCommand::AddOrder { 
                 elevator_id: LOCAL_ID, 
@@ -38,24 +46,27 @@ impl TryFrom<HardwareData> for MemoryData {
                     LOCAL_ID
                 )}
             }),
+             */
             HardwareData::FloorSensor(floor) => Ok(Self {
                 data: ElevatorStatusCommand::SetFloor{
                     elevator_id: LOCAL_ID,
                     floor 
                 }
             }),
+
             HardwareData::Obstruction(status) => Ok(Self {
                 data: ElevatorStatusCommand::SetObstruction { 
                     elevator_id: LOCAL_ID, 
-                    obs: status 
+                    obstruction: get_obstruction(status) 
                 }
             }),
-            HardwareData::StopButton(status) => Ok(Self {
+            /*HardwareData::StopButton(status) => Ok(Self {
                 data: ElevatorStatusCommand::SetStop { 
                     elevator_id: LOCAL_ID, 
                     stop: status 
                 }
-            }), 
+            }),
+            */ 
             _ => Err(())
         }
     }
@@ -64,7 +75,7 @@ impl TryFrom<HardwareData> for MemoryData {
 impl From<NetworkData> for MemoryData {
     fn from(data: NetworkData) -> Self {
         Self {
-            data: ElevatorStatusCommand::AddWorldView { 
+            data: ElevatorStatusCommand::GetWorldView { 
                 elevator_id: data.machine_id, 
                 world: data.data 
             }   

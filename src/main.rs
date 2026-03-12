@@ -77,7 +77,7 @@ fn main()
     let states: HashMap<u64, mem::Elevator> = HashMap::new();
     let states_1: HashMap<u64, Order> = HashMap::new();
     let states_2: HashMap<u64, u8> = HashMap::new();
-    let mut state_matrix: mem::WorldView = mem::WorldView::new(states, states_1, states_2);
+    //let mut state_matrix: mem::WorldView = mem::WorldView::new(states, states_1, states_2);
 
     // Placeholders - Replace with other thread sources and add conversion to them
     
@@ -115,12 +115,12 @@ fn main()
                     }
                 }
 
-                let elevator_data: Elevator = state_matrix.get_elevator(id).clone();
-                match mem_placeholder_src.send(elevator_data)
-                {
-                    Ok(_)   => println!("Transmit Successful, elevator: {id}."),
-                    Err(_)  => println!("Transmit Failed, elevator {id}."),
-                }
+                //let elevator_data: Elevator = state_matrix.get_elevator(id).clone();
+                //match mem_placeholder_src.send(elevator_data)
+                //{
+                //    Ok(_)   => println!("Transmit Successful, elevator: {id}."),
+                //    Err(_)  => println!("Transmit Failed, elevator {id}."),
+                //}
             }
             thread::sleep(DELAY_DUR);
         }

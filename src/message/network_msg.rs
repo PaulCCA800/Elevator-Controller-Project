@@ -17,9 +17,9 @@ impl TryFrom<MemoryData> for NetworkData {
 
     fn try_from(data: MemoryData) -> Result<Self, Self::Error> {
         match data.data {
-            ElevatorStatusCommand::GetWorldView{elevator_id, world} => Ok(
-                NetworkData::new(world, elevator_id)
-            ),
+            //ElevatorStatusCommand::GetWorldView{elevator_id, world} => Ok(
+            //    NetworkData::new(world, elevator_id)
+            //),
             _ => Err(())
         }
     }

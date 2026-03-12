@@ -1,6 +1,5 @@
 use std::{collections::{HashMap, VecDeque}};
 use serde::{Deserialize, Serialize};
-use rand::Rng;
 
 use crate::misc::generate_id;
 
@@ -12,13 +11,13 @@ pub enum Behaviour {
     DoorOpen,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub enum OrderType {
     Cab,
     Hall,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 pub enum Obstruction {
     Obstructed,
     Clear,
@@ -32,20 +31,20 @@ pub enum ElevatorDirection {
     Stop,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum OrderDirection {
     Up,
     Down,
 }
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum OrderStatus {
     Unconfirmed,
     Confirmed,
     Completed, 
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Order {
     order_id: u64,
     floor: u8,
@@ -55,7 +54,7 @@ pub struct Order {
     ack_barrier: Vec<u64>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Elevator {
     elevator_id: u64,
     session_id: u64,
@@ -66,7 +65,7 @@ pub struct Elevator {
     cab_requests: VecDeque<Order>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct WorldView {
     elevator_statuses: HashMap <u64, Elevator>,
     hall_order_queue: HashMap<u64, Order>,
@@ -75,22 +74,24 @@ pub struct WorldView {
 
 pub type HallOrders = VecDeque<Order>;
 
+#[derive(Serialize, Deserialize)]
 pub enum ElevatorStatusCommand {
-    SetBehaviour {elevator_id: u64, behavior: Behaviour},
-    SetObstruction {elevator_id: u64, obstruction: Obstruction},
-    SetFloor {elevator_id: u64, floor: u8},
-    SetDirection {elevator_id: u64, dir: ElevatorDirection},
-    SetCabRequests {elevator_id: u64, orders: VecDeque<Order>},
-    AddCabRequest {elevator_id: u64, order: Order},
-    RemoveCabRequest {elevator_id: u64},
+    SetBehaviour        {elevator_id: u64, behavior: Behaviour},
+    SetDirection        {elevator_id: u64, dir: ElevatorDirection},
+    SetFloor            {elevator_id: u64, floor: u8},
+    SetObstruction      {elevator_id: u64, obstruction: Obstruction},
+    SetCabRequests      {elevator_id: u64, orders: VecDeque<Order>},
+    AddCabRequest       {elevator_id: u64, order: Order},
+    GetWorldView        {elevator_id: u64, world: WorldView},
+    RemoveCabRequest    {elevator_id: u64},
 }
 
 pub enum OrderQueueCommand {
-    AddToOrderQueue {order: Order},
+    AddToOrderQueue     {order: Order},
     RemoveFromOrderQueue{order_id: u64},
-    SetOrderStatus{order_id: u64, status: OrderStatus},
-    SetAckBarrier{order_id: u64, barrier: Vec<u64>},
-    InsertAckBarrier{order_id: u64, elevator_id: u64},
+    SetOrderStatus      {order_id: u64, status: OrderStatus},
+    SetAckBarrier       {order_id: u64, barrier: Vec<u64>},
+    InsertAckBarrier    {order_id: u64, elevator_id: u64},
 }
 
 impl Order {
@@ -364,6 +365,10 @@ impl WorldView {
 
             ElevatorStatusCommand::RemoveCabRequest {elevator_id}
             =>self.remove_elev_cab_order(elevator_id),
+
+            _ => ()
+            //ElevatorStatusCommand::GetWorldView { elevator_id, world }
+            //=>self.get_world_view(elevator_id),
         }
     }
 

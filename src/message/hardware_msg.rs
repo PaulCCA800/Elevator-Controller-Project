@@ -46,15 +46,15 @@ impl TryFrom<MemoryData> for HardwareData {
 
     fn try_from(data: MemoryData) -> Result<Self, Self::Error> {
         match data.data {
-            ElevatorStatusCommand::SetDirection { elevator_id: _, dir } => Ok(
-                HardwareData::SetMotorDirection(dir.to_u8())
-            ),
+            //ElevatorStatusCommand::SetDirection { elevator_id: _, dir } => Ok(
+            //    HardwareData::SetMotorDirection(dir.to_u8())
+            //),
             ElevatorStatusCommand::SetFloor { elevator_id: _, floor } => Ok(
                 HardwareData::SetFloorIndicator(floor)
             ),
-            ElevatorStatusCommand::SetStop { elevator_id: _, stop } => Ok(
-                HardwareData::SetStopLight(stop)
-            ),
+            //ElevatorStatusCommand::SetStop { elevator_id: _, stop } => Ok(
+            //    HardwareData::SetStopLight(stop)
+            //),
             _ => Err(())
         }
     }
