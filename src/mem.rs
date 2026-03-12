@@ -73,6 +73,7 @@ pub struct WorldView {
     elevator_statuses: HashMap <u64, Elevator>,
     hall_order_queue: HashMap<u64, Order>,
     write_counter: HashMap <u64, u64>,
+    recorded_session_ids: HashMap<u64, u64>,
 }
 
 pub type HallOrders = VecDeque<Order>;
@@ -240,6 +241,7 @@ impl WorldView {
             elevator_statuses: Self::initialize_elevator_statuses(my_elevator_id),
             hall_order_queue: HashMap::new(),
             write_counter: Self::initialize_write_counter(my_elevator_id),
+            recorded_session_ids: Self::initialize_recorded_session_ids(my_elevator_id, session_id),
             }
     }
 
@@ -257,8 +259,15 @@ impl WorldView {
         return initial_write_counter
     }
 
+    fn initialize_recorded_session_ids(elevator_id: u64, session_id: u64) -> HashMap<u64, u64>{
+        let mut recorded_session_ids: HashMap<u64, u64> = HashMap::new();
+        recorded_session_ids.insert(elevator_id, session_id);
+        return recorded_session_ids;
+
+    }
+
     //interface for elevators 
-    fn get_elevator_id(&self) -> u64{
+    fn get_id(&self) -> u64{
         return self.my_elevator_id
     }
 
@@ -268,6 +277,10 @@ impl WorldView {
 
     pub fn get_elevator_statuses(&self) -> &HashMap<u64, Elevator>{
         return &self.elevator_statuses;
+    }
+
+    fn get_recorded_session_ids(&self) -> &HashMap<u64, u64>{
+        return &self.recorded_session_ids
     }
 
     pub fn get_elevator(&self, elevator_id: u64) -> &Elevator {
@@ -371,7 +384,7 @@ impl WorldView {
 
     fn synchronize_world_view(&mut self, world_view: WorldView, last_recorded_session_ids: &mut HashMap<u64, u64>) {
 
-        let other_id: u64 = world_view.get_elevator_id();
+        let other_id: u64 = world_view.get_id();
         let other_session_id: u64 = *world_view.get_session_id();
         let mut other_resurrected: bool = false;
 
@@ -400,15 +413,37 @@ impl WorldView {
         let version_control = new_write_counter.wrapping_sub(last_recorded_counter.clone());
         let mut is_newer: bool = false;
 
-        if version_control < (1 << 63){
+        if version_control != 0 && version_control < (1 << 63){
             is_newer = true;
         } 
 
         if is_newer && !other_resurrected{
-            
+
         }
 
-        self.increment_write_counter(&self.get_elevator_id());
+        let last_recorded_local_counter: &u64 = self.get_write_counter()
+                                                 .get(&self.get_id())
+                                                 .expect("critical error fetching local elevetor ID");
+        
+        let received_last_recorded_local_counter: &u64 = world_view.get_write_counter()
+                                                 .get(&world_view.get_id())
+                                                 .expect("critical error fetching local elevetor ID");
+        
+
+        if received_last_recorded_local_counter.wrapping_sub(*last_recorded_local_counter) < (1 << 63){
+
+        }
+
+        if received_last_recorded_local_counter.wrapping_sub(*last_recorded_local_counter) == 0 && 
+        self.get_recorded_session_ids()
+            .get(&self.get_id())
+            .expect("critical error fetching local elevetor ID") != world_view.get_recorded_session_ids()
+                                                                              .get(&world_view.get_id())
+                                                                              .expect("critical error fetching remote elevetor ID"){
+
+        }
+
+        self.increment_write_counter(&self.get_id());
     }      
     
 
