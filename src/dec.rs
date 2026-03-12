@@ -104,9 +104,9 @@ fn assigner_output_to_assigned_orders(orderMap: HashMap<String, Vec<[bool; 2]>>)
 }  
 
 
-fn hall_order_format_converter(order_queue: &VecDeque<Order>) -> Vec<[bool; 2]>{
+fn hall_order_format_converter(order_queue: &HashMap<u64, Order>) -> Vec<[bool; 2]>{
     let mut queue: Vec<[bool; 2]> = Vec::new();
-    for order in order_queue{
+    for order in order_queue.values(){
         let dir_idx = match order.get_direction() {
             OrderDirection::Up => 0,
             OrderDirection::Down => 1,
@@ -128,7 +128,7 @@ fn cab_order_format_converter(order_queue: &VecDeque<Order>) -> Vec<bool>{
 
 pub fn assign_hall_orders(last_world_view: WorldView) -> HashMap<u64, VecDeque<Order>> {
 
-    let states: HashMap<String, ElevatorState> = HashMap::new();
+    let mut states: HashMap<String, ElevatorState> = HashMap::new();
 
     for (id, elevator) in last_world_view.get_elevator_statuses() {
         let id_string: String = id.to_string();
