@@ -3,7 +3,7 @@ use driver_rust::elevio::poll::CallButton;
 use serde::{Deserialize, Serialize};
 
 use crate::message::memory_msg::MemoryData;
-use crate::memory::ElevatorStatusCommand;
+use crate::memory::elevator::ElevatorStatusCommand;
 
 #[derive(Serialize, Deserialize)]
 pub struct

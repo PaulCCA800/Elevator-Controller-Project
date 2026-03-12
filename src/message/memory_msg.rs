@@ -1,19 +1,9 @@
-use std::{convert::TryFrom, os::linux::raw::stat};
+use std::convert::TryFrom;
 use serde::{Deserialize, Serialize};
 
-use crate::{memory::{ElevatorDirection, ElevatorStatusCommand}, message::{LOCAL_ID, hardware_msg::HardwareData, network_msg::NetworkData}};
-
-fn is_cab(call: u8) -> bool {
-    call == 2
-}
-
-fn get_dir(call: u8) -> ElevatorDirection {
-    match call {
-        2 => ElevatorDirection::Stop,
-        1 => ElevatorDirection::Down,
-        _ => ElevatorDirection::Up,
-    }
-}
+use crate::{message::{LOCAL_ID, hardware_msg::HardwareData, network_msg::NetworkData}};
+use crate::memory::elevator::{ElevatorStatusCommand, Obstruction};
+use crate::memory::order::{Order, OrderDirection, OrderType};
 
 fn get_obstruction(obs: bool) -> Obstruction
 {
@@ -32,21 +22,17 @@ impl TryFrom<HardwareData> for MemoryData {
 
     fn try_from(data: HardwareData) -> Result<Self, Self::Error> {
         match data {
-            /*
+            
             HardwareData::CallButton(call_button) => Ok(Self {
-                data: ElevatorStatusCommand::AddOrder { 
-                elevator_id: LOCAL_ID, 
-                order: Order::new(
-                    LOCAL_ID,
-                    call_button.floor, 
-                    is_cab(call_button.call), 
-                    get_dir(call_button.call),
-                    OrderStatus::Unconfirmed, 
-                    vec![], 
-                    LOCAL_ID
-                )}
+                data: ElevatorStatusCommand::AddCabRequest { 
+                    elevator_id: LOCAL_ID, 
+                    order: Order::new(
+                        call_button.floor, 
+                        OrderType::is_cab(call_button.call),
+                        OrderDirection::dir_from_call(call_button.call)
+                    ) 
+                }
             }),
-             */
             HardwareData::FloorSensor(floor) => Ok(Self {
                 data: ElevatorStatusCommand::SetFloor{
                     elevator_id: LOCAL_ID,
@@ -76,6 +62,7 @@ impl From<NetworkData> for MemoryData {
     fn from(data: NetworkData) -> Self {
         Self {
             data: ElevatorStatusCommand::SynchronizeWorldView {
+                elevator_id: data.machine_id,
                 world_view: data.data
             }
         }

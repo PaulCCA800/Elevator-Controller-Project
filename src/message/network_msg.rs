@@ -1,6 +1,7 @@
 use std::convert::TryFrom;
 
-use crate::{memory::{ElevatorStatusCommand, WorldView}, message::memory_msg::MemoryData};
+use crate::{memory::{world_view::{WorldView}, elevator::ElevatorStatusCommand}, message::memory_msg::MemoryData};
+
 
 const SYSTEM_IDENTIFIER: [u8; 4] = [0xF0, 0x9F, 0x8D, 0x86];
 
@@ -17,9 +18,9 @@ impl TryFrom<MemoryData> for NetworkData {
 
     fn try_from(data: MemoryData) -> Result<Self, Self::Error> {
         match data.data {
-            //ElevatorStatusCommand::GetWorldView{elevator_id, world} => Ok(
-            //    NetworkData::new(world, elevator_id)
-            //),
+            ElevatorStatusCommand::SynchronizeWorldView{elevator_id, world_view} => Ok(
+                NetworkData::new(world_view, elevator_id)
+            ),
             _ => Err(())
         }
     }
