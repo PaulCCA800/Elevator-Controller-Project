@@ -9,37 +9,6 @@ use crate::message::{
 };
 
 impl
-HardwareData
-{
-    pub fn
-    hardware_to_memory(self, id: u64) -> Result<MemoryData, Error>
-    {
-        match self
-        {
-            Self::CallButton(call_button_data) 
-                => Ok(MemoryData::from_call_button(call_button_data, id)),
-            Self::FloorSensor(floor) 
-                => Ok(MemoryData::from_floor(floor, id)),
-            Self::Obstruction(status)  
-                => Ok(MemoryData::from_obstruction(status, id)),
-            Self::StopButton(status) 
-                => Ok(MemoryData::from_stop_button(status, id)),
-            _ => Err(Error::default()),
-        }
-    }
-}
-
-impl
-NetworkData
-{
-    pub fn
-    network_to_memory(self) -> Result<MemoryData, Error>
-    {
-        Ok(MemoryData::from_network_data(self.data, self.machine_id))
-    }
-}
-
-impl
 MemoryData
 {
     pub fn
