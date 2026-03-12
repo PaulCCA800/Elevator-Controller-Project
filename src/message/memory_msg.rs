@@ -75,10 +75,9 @@ impl TryFrom<HardwareData> for MemoryData {
 impl From<NetworkData> for MemoryData {
     fn from(data: NetworkData) -> Self {
         Self {
-            data: ElevatorStatusCommand::GetWorldView { 
-                elevator_id: data.machine_id, 
-                world: data.data 
-            }   
+            data: ElevatorStatusCommand::SynchronizeWorldView {
+                world_view: data.data
+            }
         }
     }
 }

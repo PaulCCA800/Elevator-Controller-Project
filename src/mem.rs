@@ -1,5 +1,6 @@
 use std::{collections::{HashMap, VecDeque}};
 use serde::{Deserialize, Serialize};
+use rand::Rng;
 
 use crate::misc::generate_id;
 
@@ -67,31 +68,33 @@ pub struct Elevator {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct WorldView {
+    my_elevator_id: u64,
+    session_id: u64,
     elevator_statuses: HashMap <u64, Elevator>,
     hall_order_queue: HashMap<u64, Order>,
-    write_counter: HashMap <u64, u8>,
+    write_counter: HashMap <u64, u64>,
 }
 
 pub type HallOrders = VecDeque<Order>;
 
 #[derive(Serialize, Deserialize)]
 pub enum ElevatorStatusCommand {
-    SetBehaviour        {elevator_id: u64, behavior: Behaviour},
-    SetDirection        {elevator_id: u64, dir: ElevatorDirection},
-    SetFloor            {elevator_id: u64, floor: u8},
-    SetObstruction      {elevator_id: u64, obstruction: Obstruction},
-    SetCabRequests      {elevator_id: u64, orders: VecDeque<Order>},
-    AddCabRequest       {elevator_id: u64, order: Order},
-    GetWorldView        {elevator_id: u64, world: WorldView},
-    RemoveCabRequest    {elevator_id: u64},
+    SetBehaviour {elevator_id: u64, behavior: Behaviour},
+    SetObstruction {elevator_id: u64, obstruction: Obstruction},
+    SetFloor {elevator_id: u64, floor: u8},
+    SetDirection {elevator_id: u64, dir: ElevatorDirection},
+    SetCabRequests {elevator_id: u64, orders: VecDeque<Order>},
+    AddCabRequest {elevator_id: u64, order: Order},
+    RemoveCabRequest {elevator_id: u64},
+    SynchronizeWorldView {world_view: WorldView},
 }
 
 pub enum OrderQueueCommand {
-    AddToOrderQueue     {order: Order},
+    AddToOrderQueue {order: Order},
     RemoveFromOrderQueue{order_id: u64},
-    SetOrderStatus      {order_id: u64, status: OrderStatus},
-    SetAckBarrier       {order_id: u64, barrier: Vec<u64>},
-    InsertAckBarrier    {order_id: u64, elevator_id: u64},
+    SetOrderStatus{order_id: u64, status: OrderStatus},
+    SetAckBarrier{order_id: u64, barrier: Vec<u64>},
+    InsertAckBarrier{order_id: u64, elevator_id: u64},
 }
 
 impl Order {
@@ -152,9 +155,9 @@ impl Order {
 }
 
 impl Elevator{
-    pub fn new() -> Self{
+    pub fn new(elevator_id: u64) -> Self{
         Self{
-            elevator_id: generate_id(),
+            elevator_id,
             session_id: Self::generate_session_id(),
             behaviour: Behaviour::Idle,
             obstruction: Obstruction::Clear,
@@ -204,7 +207,7 @@ impl Elevator{
         self.floor = floor;
     }
 
-    pub fn get_direction(&mut self) -> &ElevatorDirection {
+    pub fn get_direction(&self) -> &ElevatorDirection {
         return &self.direction
     }
 
@@ -230,9 +233,11 @@ impl Elevator{
 }
 
 impl WorldView {
-    pub fn new(my_elevator_id: u64) -> Self{
+    pub fn new(my_elevator_id: u64, session_id: u64) -> Self{
         
         Self{
+            my_elevator_id,
+            session_id,
             elevator_statuses: Self::initialize_elevator_statuses(my_elevator_id),
             hall_order_queue: HashMap::new(),
             write_counter: Self::initialize_write_counter(my_elevator_id),
@@ -243,17 +248,24 @@ impl WorldView {
 
     fn initialize_elevator_statuses(id: u64) -> HashMap<u64, Elevator>{
         let mut initial_elevator_statuses = HashMap::new();
-        initial_elevator_statuses.insert(id, Elevator::new());
+        initial_elevator_statuses.insert(id, Elevator::new(id));
         return initial_elevator_statuses
     }
 
-    fn initialize_write_counter(id: u64) -> HashMap<u64, u8>{
+    fn initialize_write_counter(id: u64) -> HashMap<u64, u64>{
         let mut initial_write_counter = HashMap::new();
-        initial_write_counter.insert(id, 0 as u8);
+        initial_write_counter.insert(id, 0 as u64);
         return initial_write_counter
     }
 
     //interface for elevators 
+    fn get_elevator_id(&self) -> u64{
+        return self.my_elevator_id
+    }
+
+    fn get_session_id(&self) -> &u64{
+        return &self.session_id
+    }
 
     pub fn get_elevator_statuses(&self) -> &HashMap<u64, Elevator>{
         return &self.elevator_statuses;
@@ -307,7 +319,7 @@ impl WorldView {
 
     //interface for order queue
 
-    pub fn get_order_queue(&mut self) -> &HashMap<u64, Order>{
+    pub fn get_order_queue(&self) -> &HashMap<u64, Order>{
         return &self.hall_order_queue
     }
 
@@ -341,6 +353,66 @@ impl WorldView {
         self.get_mut_order(order_id).insert_into_ack_barrier(elevator_id);
     }
 
+    //write counter incrementer
+
+    fn get_write_counter(&self) -> &HashMap<u64, u64>{
+        return &self.write_counter
+    }
+
+    fn get_mut_write_counter(&mut self) -> &mut HashMap<u64, u64>{
+        return &mut self.write_counter
+    }
+ 
+    pub fn increment_write_counter(&mut self, elevator_id: &u64) {
+        let counter = self.write_counter.entry(*elevator_id).or_insert(0);
+        *counter = counter.wrapping_add(1);
+    }
+
+    //synchronizing function
+
+    fn synchronize_world_view(&mut self, world_view: WorldView, last_recorded_session_ids: &mut HashMap<u64, u64>) {
+
+        let other_id: u64 = world_view.get_elevator_id();
+        let other_session_id: u64 = *world_view.get_session_id();
+        let mut other_resurrected: bool = false;
+
+        if !last_recorded_session_ids.keys().any(|k| *k == other_id){
+            last_recorded_session_ids.insert(other_id, other_session_id);
+        } 
+
+        if last_recorded_session_ids.get(&other_id).expect("critical error synchronizing session ids.") != &other_session_id{
+            last_recorded_session_ids.insert(other_id, other_session_id);
+            other_resurrected = true;
+        }
+
+        let other_elevators: Vec<&Elevator> = world_view.get_elevator_statuses()
+                                                        .values()
+                                                        .collect();
+
+        let other_hall_order_queue: &HashMap<u64, Order> = world_view.get_order_queue();
+        
+        let new_write_counter: &u64 = match world_view.get_write_counter().get(&other_id){
+            Some(counter) => counter,
+            None => return,
+        };
+
+        let last_recorded_counter: &mut u64 = self.get_mut_write_counter().entry(other_id).or_insert(0); 
+
+        let version_control = new_write_counter.wrapping_sub(last_recorded_counter.clone());
+        let mut is_newer: bool = false;
+
+        if version_control < (1 << 63){
+            is_newer = true;
+        } 
+
+        if is_newer && !other_resurrected{
+            
+        }
+
+        self.increment_write_counter(&self.get_elevator_id());
+    }      
+    
+
     //editing functions 
 
     pub fn edit_elevator_status(&mut self, command: ElevatorStatusCommand) {
@@ -366,9 +438,10 @@ impl WorldView {
             ElevatorStatusCommand::RemoveCabRequest {elevator_id}
             =>self.remove_elev_cab_order(elevator_id),
 
+            //ElevatorStatusCommand::SynchronizeWorldView {world_view}
+            //=>self.synchronize_world_view(world_view),
             _ => ()
-            //ElevatorStatusCommand::GetWorldView { elevator_id, world }
-            //=>self.get_world_view(elevator_id),
+
         }
     }
 
@@ -389,13 +462,5 @@ impl WorldView {
             OrderQueueCommand::InsertAckBarrier {order_id, elevator_id}
             => self.insert_into_order_ack_barrier(order_id, elevator_id),
         }
-    }
-
-    pub fn increment_write_counter(&mut self, elevator_id: &u64) {
-        *self.write_counter.entry(*elevator_id).or_insert(0) += 1;
-    }
-
-    pub fn update_my_world_view(){
-
     }
 }
