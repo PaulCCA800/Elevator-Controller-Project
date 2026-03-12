@@ -1,7 +1,7 @@
 use std::{convert::TryFrom, os::linux::raw::stat};
 use serde::{Deserialize, Serialize};
 
-use crate::{mem::{ElevatorDirection, ElevatorStatusCommand, Obstruction, Order, OrderStatus}, message::{LOCAL_ID, hardware_msg::HardwareData, network_msg::NetworkData}};
+use crate::{memory::{ElevatorDirection, ElevatorStatusCommand}, message::{LOCAL_ID, hardware_msg::HardwareData, network_msg::NetworkData}};
 
 fn is_cab(call: u8) -> bool {
     call == 2

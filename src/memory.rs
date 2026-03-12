@@ -1,41 +1,23 @@
+pub mod elevator;
+
 use std::{collections::{HashMap, VecDeque}};
 use serde::{Deserialize, Serialize};
 use rand::Rng;
 
+use crate::memory::elevator::{Behaviour, Obstruction, ElevatorDirection, Elevator, ElevatorStatusCommand};
+
 use crate::misc::generate_id;
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum Behaviour {
-    Idle,
-    Moving,
-    DoorOpen,
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+pub enum OrderDirection {
+    Up,
+    Down,
 }
 
 #[derive(Copy, Clone, Serialize, Deserialize)]
 pub enum OrderType {
     Cab,
     Hall,
-}
-
-#[derive(Copy, Clone, Serialize, Deserialize)]
-pub enum Obstruction {
-    Obstructed,
-    Clear,
-}
-
-#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum ElevatorDirection {
-    Up,
-    Down,
-    Stop,
-}
-
-#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
-pub enum OrderDirection {
-    Up,
-    Down,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -56,17 +38,6 @@ pub struct Order {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct Elevator {
-    elevator_id: u64,
-    session_id: u64,
-    behaviour: Behaviour,
-    obstruction: Obstruction,
-    floor: u8,
-    direction: ElevatorDirection,
-    cab_requests: VecDeque<Order>,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
 pub struct WorldView {
     my_elevator_id: u64,
     session_id: u64,
@@ -76,18 +47,6 @@ pub struct WorldView {
 }
 
 pub type HallOrders = VecDeque<Order>;
-
-#[derive(Serialize, Deserialize)]
-pub enum ElevatorStatusCommand {
-    SetBehaviour {elevator_id: u64, behavior: Behaviour},
-    SetObstruction {elevator_id: u64, obstruction: Obstruction},
-    SetFloor {elevator_id: u64, floor: u8},
-    SetDirection {elevator_id: u64, dir: ElevatorDirection},
-    SetCabRequests {elevator_id: u64, orders: VecDeque<Order>},
-    AddCabRequest {elevator_id: u64, order: Order},
-    RemoveCabRequest {elevator_id: u64},
-    SynchronizeWorldView {world_view: WorldView},
-}
 
 pub enum OrderQueueCommand {
     AddToOrderQueue {order: Order},

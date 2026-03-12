@@ -7,9 +7,9 @@ mod message;
 mod hardware;
 mod udpserver;
 mod misc;
-mod mem;
+mod memory;
 
-use crate::mem::{Elevator, Order};
+use crate::memory::{Elevator, Order};
 use crate::message::{Message, MessageContent};
 use crate::udpserver::udp_server::Server;
 use crate::misc::{DELAY_DUR, generate_id};
@@ -74,7 +74,7 @@ fn main()
     }));
 
     // Memory Section
-    let states: HashMap<u64, mem::Elevator> = HashMap::new();
+    let states: HashMap<u64, memory::Elevator> = HashMap::new();
     let states_1: HashMap<u64, Order> = HashMap::new();
     let states_2: HashMap<u64, u8> = HashMap::new();
     //let mut state_matrix: mem::WorldView = mem::WorldView::new(states, states_1, states_2);

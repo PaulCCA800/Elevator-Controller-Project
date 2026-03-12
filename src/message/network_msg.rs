@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use crate::{mem::{ElevatorStatusCommand, WorldView}, message::memory_msg::MemoryData};
+use crate::{memory::{ElevatorStatusCommand, WorldView}, message::memory_msg::MemoryData};
 
 const SYSTEM_IDENTIFIER: [u8; 4] = [0xF0, 0x9F, 0x8D, 0x86];
 
