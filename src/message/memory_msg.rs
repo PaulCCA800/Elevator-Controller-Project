@@ -1,8 +1,9 @@
-use crate::{mem::{Direction, ElevatorStatusCommand, Order, OrderStatus, WorldView}, message::hardware_msg::ConvertedCallButton};
-
+use std::convert::TryFrom;
 use serde::{Deserialize, Serialize};
-#[derive(Serialize, Deserialize)]
 
+use crate::{mem::{Direction, ElevatorStatusCommand, Order, OrderStatus, WorldView}, message::{LOCAL_ID, hardware_msg::{ConvertedCallButton, HardwareData}, network_msg::NetworkData}};
+
+#[derive(Serialize, Deserialize)]
 pub struct
 MemoryData
 {
@@ -16,7 +17,7 @@ MemoryData
     fn
     is_cab(call: u8) -> bool
     {
-        return call == 2;
+        call == 2
     }
 
     fn
@@ -24,10 +25,35 @@ MemoryData
     {
         match call
         {
-            2 => return Direction::Inherit,
-            1 => return Direction::Down,
-            _ => return Direction::Up,
+            2 => Direction::Inherit,
+            1 => Direction::Down,
+            _ => Direction::Up,
         }
+    }
+}
+
+impl TryFrom<HardwareData> for MemoryData {
+    type Error = ();
+
+    fn try_from(data: HardwareData) -> Result<Self, Self::Error> {
+        match data
+        {
+            HardwareData::CallButton(call_button) 
+                => Ok(MemoryData::from_call_button(call_button, LOCAL_ID)),
+            HardwareData::FloorSensor(floor) 
+                => Ok(MemoryData::from_floor(floor, LOCAL_ID)),
+            HardwareData::Obstruction(status)
+                => Ok(MemoryData::from_obstruction(status, LOCAL_ID)),
+            HardwareData::StopButton(status)
+                => Ok(MemoryData::from_stop_button(status, LOCAL_ID)), 
+            _ => Err(())
+        }
+    }
+}
+
+impl From<NetworkData> for MemoryData {
+    fn from(data: NetworkData) -> Self {
+        MemoryData::from_network_data(data.data, data.machine_id)
     }
 }
 

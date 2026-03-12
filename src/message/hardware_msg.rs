@@ -14,16 +14,15 @@ ConvertedCallButton
 pub enum
 HardwareData
 {
-    DataCallButton      {call_button_data: ConvertedCallButton},
-    DataFloorSensor     {floor: u8},
-    DataStopButton      {status: bool},
-    DataObstruction     {status: bool},
+    CallButton(ConvertedCallButton),
+    FloorSensor(u8),
+    StopButton(bool),
+    Obstruction(bool),
     SetMotorDirection   {dir: u8},
     SetCallButtonLight  {floor: u8, call: u8, status: bool},
     SetDoorLight        {status: bool},
     SetStopLight        {status: bool},
     SetFloorIndicator   {floor: u8},
-    PASS
 }
 
 impl 

@@ -84,9 +84,7 @@ hardware
     {
         Message::new_local(
             MessageContent::Hardware(
-                HardwareData::DataCallButton { 
-                    call_button_data: ConvertedCallButton::from_call_button(cb) 
-                }
+                HardwareData::CallButton (ConvertedCallButton::from_call_button(cb))
             ))
     }
 
@@ -95,7 +93,7 @@ hardware
     {
         Message::new_local(
             MessageContent::Hardware(
-                HardwareData::DataFloorSensor { floor: fs }
+                HardwareData::FloorSensor(fs)
             )
         )
     }
@@ -105,7 +103,7 @@ hardware
     {
         Message::new_local(
             MessageContent::Hardware(
-                HardwareData::DataStopButton { status: sb }
+                HardwareData::StopButton(sb)
             )
         )
     }
@@ -115,7 +113,7 @@ hardware
     {
         Message::new_local(
             MessageContent::Hardware(
-                HardwareData::DataObstruction { status: ob }
+                HardwareData::Obstruction(ob)
             )
         )
     }

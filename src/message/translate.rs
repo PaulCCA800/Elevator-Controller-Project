@@ -16,13 +16,13 @@ HardwareData
     {
         match self
         {
-            Self::DataCallButton { call_button_data } 
+            Self::CallButton(call_button_data) 
                 => Ok(MemoryData::from_call_button(call_button_data, id)),
-            Self::DataFloorSensor { floor } 
+            Self::FloorSensor(floor) 
                 => Ok(MemoryData::from_floor(floor, id)),
-            Self::DataObstruction { status }  
+            Self::Obstruction(status)  
                 => Ok(MemoryData::from_obstruction(status, id)),
-            Self::DataStopButton { status } 
+            Self::StopButton(status) 
                 => Ok(MemoryData::from_stop_button(status, id)),
             _ => Err(Error::default()),
         }
