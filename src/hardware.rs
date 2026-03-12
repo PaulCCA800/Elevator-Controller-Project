@@ -72,7 +72,8 @@ hardware
             loop
             {
                 while let Ok(cmd) = recv.try_recv() {
-                    elevator_command_execute(&elevator, cmd);           
+                    let elevator_cmd = cmd.try_into_hardware().unwrap();
+                    elevator_command_execute(&elevator, elevator_cmd);           
                 }
                 thread::sleep(time::Duration::from_millis(10));
             }            
@@ -82,7 +83,7 @@ hardware
     fn
     call_button_handler(cb: CallButton) -> Message
     {
-        Message::new_local(
+        Message::new(
             MessageContent::Hardware(
                 HardwareData::CallButton (ConvertedCallButton::from_call_button(cb))
             ))
@@ -91,7 +92,7 @@ hardware
     fn
     floor_sensor_handler(fs: u8) -> Message
     {
-        Message::new_local(
+        Message::new(
             MessageContent::Hardware(
                 HardwareData::FloorSensor(fs)
             )
@@ -101,7 +102,7 @@ hardware
     fn
     stop_button_handler(sb: bool) -> Message
     {
-        Message::new_local(
+        Message::new(
             MessageContent::Hardware(
                 HardwareData::StopButton(sb)
             )
@@ -111,7 +112,7 @@ hardware
     fn
     obstruction_handler(ob: bool) -> Message
     {
-        Message::new_local(
+        Message::new(
             MessageContent::Hardware(
                 HardwareData::Obstruction(ob)
             )

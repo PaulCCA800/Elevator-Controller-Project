@@ -36,7 +36,8 @@ fn main()
             {
                 if let Ok(server_lock) = elevator_server_rx.lock(){
                     if let Ok(channel_data) = network_transmit_recv.try_recv(){
-                        server_lock.network_transmit(channel_data);                        
+                        let network_data= channel_data.try_into_network().unwrap();
+                        server_lock.network_transmit(network_data);                        
                     }
                 }
             }

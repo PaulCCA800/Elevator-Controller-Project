@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use crate::message::memory_msg::MemoryData;
 use crate::mem::ElevatorStatusCommand;
 
-
 #[derive(Serialize, Deserialize)]
 pub struct
 ConvertedCallButton
