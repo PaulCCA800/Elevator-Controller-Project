@@ -74,7 +74,7 @@ pub enum ElevatorStatusCommand {
     AddOrder        {elevator_id: u64, order: Order},
     RemoveOrder     {elevator_id: u64},
     AddWorldView    {elevator_id: u64, world: WorldView},
-    GetWorldView    {world: WorldView}
+    GetWorldView    {elevator_id: u64, world: WorldView}
 }
 
 pub enum OrderQueueCommand {

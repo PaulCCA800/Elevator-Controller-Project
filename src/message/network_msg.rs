@@ -1,4 +1,6 @@
-use crate::mem::WorldView;
+use std::convert::TryFrom;
+
+use crate::{mem::{ElevatorStatusCommand, WorldView}, message::memory_msg::MemoryData};
 
 const SYSTEM_IDENTIFIER: [u8; 4] = [0xF0, 0x9F, 0x8D, 0x86];
 
@@ -10,6 +12,19 @@ pub struct NetworkData {
     pub data        : WorldView
 }
 
+impl TryFrom<MemoryData> for NetworkData {
+    type Error = ();
+
+    fn try_from(data: MemoryData) -> Result<Self, Self::Error> {
+        match data.data {
+            ElevatorStatusCommand::GetWorldView{elevator_id, world} => Ok(
+                NetworkData::new(world, elevator_id)
+            ),
+            _ => Err(())
+        }
+    }
+}
+
 impl NetworkData {
     pub fn new(data: WorldView, machine_id: u64) -> Self {
         Self {
@@ -17,9 +32,5 @@ impl NetworkData {
             machine_id, 
             data 
         }
-    }
-
-    pub fn from_mem_data(data: WorldView, id: u64) -> NetworkData {
-        NetworkData::new(data, id)
     }
 }
