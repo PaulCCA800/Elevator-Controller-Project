@@ -1,7 +1,6 @@
 pub mod hardware_msg;
 pub mod memory_msg;
 pub mod network_msg;
-pub mod translate;
 
 use serde::{Deserialize, Serialize};
 

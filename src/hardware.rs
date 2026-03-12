@@ -123,11 +123,11 @@ hardware
     {
         match command
         {
-            Message{id, data: MessageContent::Hardware(content)} => 
+            Message{id: _, data: MessageContent::Hardware(content)} => 
             {
                 match content
                 {
-                    HardwareData::SetMotorDirection { dir } =>
+                    HardwareData::SetMotorDirection(dir) =>
                     {
                         elevator.motor_direction(dir);
                     },
@@ -135,15 +135,15 @@ hardware
                     {
                         elevator.call_button_light(floor, call, status);
                     },
-                    HardwareData::SetDoorLight { status } =>
+                    HardwareData::SetDoorLight(status) =>
                     {
                         elevator.door_light(status);
                     }
-                    HardwareData::SetStopLight { status } =>
+                    HardwareData::SetStopLight(status) =>
                     {
                         elevator.stop_button_light(status);
                     },
-                    HardwareData::SetFloorIndicator { floor } =>
+                    HardwareData::SetFloorIndicator(floor) =>
                     {
                         elevator.floor_indicator(floor);
                     }
