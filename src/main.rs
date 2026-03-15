@@ -8,6 +8,7 @@ mod network;
 mod misc;
 mod memory;
 
+use crate::memory::spawn_memory_thread;
 use crate::message::{Message};
 use crate::network::udp_server::Server;
 
@@ -28,10 +29,11 @@ fn main()
     (Sender<Message>, Receiver<Message>) = mpsc::channel();
 
     // Hardware Channels
-    let (hardware_update_src, hardware_update_recv): 
-    (Sender<Message>, Receiver<Message>) = mpsc::channel();
     let (hardware_command_src, hardware_command_recv):
     (Sender<Message>, Receiver<Message>) = mpsc::channel();
+    let (hardware_update_src, hardware_update_recv): 
+    (Sender<Message>, Receiver<Message>) = mpsc::channel();
+    
 
     // Network Tx Thread
     elevator_tasks.push(thread::spawn(move || {
@@ -49,6 +51,9 @@ fn main()
     }));
 
     // Memory Section
+    elevator_tasks.push(thread::spawn(move || {
+        spawn_memory_thread(network_transmit_src, hardware_command_src, network_receive_recv, hardware_update_recv);
+    }));
 
     for task in elevator_tasks
     {
