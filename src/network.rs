@@ -1,6 +1,10 @@
 pub mod
 udp_server
 {
+    use std::sync::{Arc, Mutex, mpsc::{Receiver, Sender}};
+    use std::thread;
+    use crate::misc::DELAY_DUR;
+
     use crate::message::Message;
 
     use std::{net::UdpSocket, net::SocketAddr};
@@ -92,6 +96,34 @@ udp_server
         get_message(&mut self) -> Option<Message>
         {      
             self.recv_queue.pop()
+        }
+
+        pub fn spawn_tx_thread(recv: Receiver<Message>, server: Arc<Mutex<Server>>) {
+            loop{
+                {
+                    if let Ok(server_lock) = server.lock(){
+                        if let Ok(channel_data) = recv.try_recv(){
+                            let network_data= channel_data.try_into_network().unwrap();
+                            server_lock.network_transmit(network_data);                        
+                        }
+                    }
+                }
+                thread::sleep(DELAY_DUR);
+            }
+        }
+
+        pub fn spawn_rx_thread(src: Sender<Message>, server: Arc<Mutex<Server>>) {
+            loop{
+                {
+                    if let Ok(mut server_lock) = server.lock(){
+                        server_lock.network_recieve();
+                        if let Some(rx_message) = server_lock.get_message(){
+                            src.send(rx_message).unwrap();
+                        }
+                    }
+                }
+                thread::sleep(DELAY_DUR);
+            }
         }
     }
 }
