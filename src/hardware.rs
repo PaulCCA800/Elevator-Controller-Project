@@ -72,8 +72,9 @@ hardware
             loop
             {
                 while let Ok(cmd) = recv.try_recv() {
-                    let elevator_cmd = cmd.try_into_hardware().unwrap();
-                    elevator_command_execute(&elevator, elevator_cmd);           
+                    if let Ok(elevator_cmd) = cmd.try_into_hardware(){
+                        elevator_command_execute(&elevator, elevator_cmd);
+                    }
                 }
                 thread::sleep(time::Duration::from_millis(10));
             }            

@@ -45,7 +45,7 @@ fn main()
         Server::spawn_rx_thread(network_receive_src, elevator_server_rx);
     }));
 
-    // Hardware Rx Thread
+    // Hardware Thread
     elevator_tasks.push(thread::spawn(move || {
         hardware::hardware::hardware_loop(hardware_update_src, hardware_command_recv);
     }));
