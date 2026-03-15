@@ -3,7 +3,7 @@ use std::io::Write;
 use std::process::{Command, Stdio};
 use serde::{Serialize, Deserialize};
 
-use crate::mem::{ElevatorDirection, OrderDirection, WorldView, Order, OrderType, Behaviour};
+use crate::mem::{Behaviour, DeadOrAlive, Elevator, ElevatorDirection, Order, OrderDirection, OrderStatus, OrderType, WorldView};
 
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -19,7 +19,7 @@ pub struct ElevatorState {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Input {
-    hall_requests: Vec<[bool; 2]>,
+    hall_requests: [[bool; 2]; 4],
     states: HashMap<String, ElevatorState>,
 }
 
@@ -28,7 +28,7 @@ pub type Output = HashMap<String, Vec<[bool; 2]>>;
 
 
 impl Input {
-    pub fn new(hall_requests: Vec<[bool; 2]>, states: HashMap<String, ElevatorState>) -> Self {
+    pub fn new(hall_requests: [[bool; 2]; 4], states: HashMap<String, ElevatorState>) -> Self {
         Self{
             hall_requests,
             states,
@@ -104,14 +104,14 @@ fn assigner_output_to_assigned_orders(orderMap: HashMap<String, Vec<[bool; 2]>>)
 }  
 
 
-fn hall_order_format_converter(order_queue: &HashMap<u64, Order>) -> Vec<[bool; 2]>{
-    let mut queue: Vec<[bool; 2]> = Vec::new();
+fn hall_order_format_converter(order_queue: &HashMap<u64, Order>) -> [[bool; 2]; 4]{
+    let mut queue = [[false; 2]; 4];
     for order in order_queue.values(){
         let dir_idx = match order.get_direction() {
             OrderDirection::Up => 0,
             OrderDirection::Down => 1,
         };
-        queue[order.get_floor().clone() as usize][dir_idx] = true;
+        queue[*order.get_floor() as usize][dir_idx] = true;
     }
     return queue
 }
@@ -130,7 +130,14 @@ pub fn assign_hall_orders(last_world_view: WorldView) -> HashMap<u64, VecDeque<O
 
     let mut states: HashMap<String, ElevatorState> = HashMap::new();
 
-    for (id, elevator) in last_world_view.get_elevator_statuses() {
+    let filtered_elevators: HashMap<u64, Elevator> 
+    = last_world_view.get_elevator_statuses()
+                     .iter()
+                     .filter(|(_, elevator)| elevator.get_dead_or_alive() == &DeadOrAlive::Alive)
+                     .map(|(id, elevator)| (*id, elevator.clone()))
+                     .collect();
+
+    for (id, elevator) in filtered_elevators {
         let id_string: String = id.to_string();
         let cab_requests:Vec<bool> = cab_order_format_converter(elevator.get_cab_requests());
         let state: ElevatorState = ElevatorState::new(elevator.get_behaviour().clone(), 
@@ -140,7 +147,14 @@ pub fn assign_hall_orders(last_world_view: WorldView) -> HashMap<u64, VecDeque<O
         states.insert(id_string, state);
     }
 
-    let queue: Vec<[bool; 2]> = hall_order_format_converter(last_world_view.get_order_queue());
+    let filtered_hall_orders: HashMap<u64, Order> 
+    = last_world_view.get_order_queue()
+                     .iter()
+                     .filter(|(_, order)| order.get_order_status() == &OrderStatus::Confirmed)
+                     .map(|(id, order)| (*id, order.clone()))
+                     .collect();
+
+    let queue: [[bool; 2]; 4] = hall_order_format_converter(&filtered_hall_orders);
  
     let input: Input = Input::new(queue, states); 
     let path_to_assigner: String = "../Project-resources/cost_fns/hall_request_assigner".to_string(); 
