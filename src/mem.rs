@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::{collections::{HashMap, HashSet, VecDeque}, hash::Hash};
 use serde::{Deserialize, Serialize};
 use rand::Rng;
 
@@ -81,6 +81,7 @@ pub struct WorldView {
     elevator_statuses: HashMap <u64, Elevator>,
     hall_order_queue: HashMap<u64, Order>,
     write_counter: HashMap <u64, u64>,
+    heart_beat_counters: HashMap<u64, u16>,
     recorded_session_ids: HashMap<u64, u64>,
 }
 
@@ -236,6 +237,10 @@ impl Elevator{
         &self.cab_requests
     }
 
+    pub fn get_mut_cab_requests(&mut self) -> &mut VecDeque<Order>{
+        &mut self.cab_requests
+    }
+
     pub fn set_cab_requests(&mut self, orders: VecDeque<Order>) {
         self.cab_requests = orders;
     }
@@ -258,6 +263,7 @@ impl WorldView {
             elevator_statuses: Self::initialize_elevator_statuses(my_elevator_id),
             hall_order_queue: HashMap::new(),
             write_counter: Self::initialize_write_counter(my_elevator_id),
+            heart_beat_counters: Self::initialize_heart_beat_counters(my_elevator_id),
             recorded_session_ids: Self::initialize_recorded_session_ids(my_elevator_id, session_id),
             }
     }
@@ -276,11 +282,16 @@ impl WorldView {
         return initial_write_counter
     }
 
+    fn initialize_heart_beat_counters(id: u64) -> HashMap<u64, u16>{
+        let mut initial_heart_beat_counters: HashMap<u64, u16> = HashMap::new();
+        initial_heart_beat_counters.insert(id, 0 as u16);
+        return initial_heart_beat_counters
+    }
+
     fn initialize_recorded_session_ids(elevator_id: u64, session_id: u64) -> HashMap<u64, u64>{
         let mut recorded_session_ids: HashMap<u64, u64> = HashMap::new();
         recorded_session_ids.insert(elevator_id, session_id);
         return recorded_session_ids;
-
     }
 
     //interface for elevators 
@@ -294,6 +305,35 @@ impl WorldView {
 
     pub fn get_elevator_statuses(&self) -> &HashMap<u64, Elevator>{
         return &self.elevator_statuses;
+    }
+
+    pub fn get_heart_beat_counters(&self) -> &HashMap<u64, u16>{
+        return &self.heart_beat_counters
+    }
+
+    pub fn get_mut_heart_beat_counters(&mut self) -> &mut HashMap<u64, u16>{
+        return &mut self.heart_beat_counters
+    }
+
+    pub fn get_heart_beat(&self, elevator_id: u64) -> &u16{
+        match self.get_heart_beat_counters().get(&elevator_id){
+            Some(heart_beat_counter) => return heart_beat_counter,
+            None => return &0
+        }
+    }
+
+    pub fn increment_heart_beat(&mut self, elevator_id: u64){
+        match self.get_mut_heart_beat_counters().get_mut(&elevator_id){
+            Some(heart_beat_counter) => {*heart_beat_counter += 1},
+            None => {},
+        } 
+    }
+
+    fn set_heart_beat(&mut self, elevator_id: u64, value: u16){
+        match self.get_mut_heart_beat_counters().get_mut(&elevator_id){
+            Some(heart_beat_counter) => {*heart_beat_counter = value},
+            None => {},
+        } 
     }
 
     fn get_recorded_session_ids(&self) -> &HashMap<u64, u64>{
@@ -426,9 +466,36 @@ impl WorldView {
     }
 
     //to be kept here
-    fn update_my_hall_order_queue(&mut self, elevator_id: u64, world_view: &WorldView, me_resurrected: bool, other_ressurected: bool){
+    fn cab_order_status_manager(&mut self){
+        let mut orders_to_remove: Vec<u64> = Vec::new();
 
-        if (self.is_counter_newer(&elevator_id, world_view, me_resurrected) == true) && !other_ressurected{
+        let my_cab_orders = self.get_mut_elevator(self.get_id()).get_mut_cab_requests();
+            for order in my_cab_orders{
+                let order_id: u64 = order.get_order_id().clone();
+                let unique_elevator_ids_count = order.get_ack_barrier().iter().collect::<HashSet<_>>().len();
+
+                if (order.get_order_status() == &OrderStatus::Unconfirmed && unique_elevator_ids_count == 3){
+                    order.set_order_status(OrderStatus::Confirmed);
+                    order.get_mut_ack_barrier().clear();
+                }
+
+                else if (order.get_order_status() == &OrderStatus::Completed && unique_elevator_ids_count == 3){
+                    order.set_order_status(OrderStatus::ReadyForDeletion);
+                    order.get_mut_ack_barrier().clear();
+                }
+
+                else if (order.get_order_status() == &OrderStatus::ReadyForDeletion && unique_elevator_ids_count == 3){
+                    orders_to_remove.push(order_id);
+                }
+            }
+            for order_id in orders_to_remove{
+                self.remove_from_queue(order_id);
+            }
+    }
+    //to be kept here
+    fn update_my_hall_order_queue(&mut self, elevator_id: u64, world_view: &WorldView, me_resurrected: bool, other_resurrected: bool){
+
+        if (self.is_counter_newer(&elevator_id, world_view, me_resurrected) == true) && !other_resurrected{
 
             let incoming_hall_order_queue: &HashMap<u64, Order> = world_view.get_order_queue();
             let my_id: u64 = self.get_id();
@@ -443,11 +510,73 @@ impl WorldView {
                     }
                 }
         }
-    }   
+    } 
 
-    fn update_all_ack_barriers(&mut self, elevator_id: u64, world_view: &WorldView, me_resurrected: bool, other_ressurected: bool){
+    //to be kept here
+    fn update_my_write_counters(&mut self, world_view: &WorldView, me_resurrected: bool, other_resurrected: bool){
 
-        if (self.is_counter_newer(&elevator_id, world_view, me_resurrected) == true) && !other_ressurected{
+        let incoming_write_counters = world_view.get_write_counter();
+        for elevator_id in incoming_write_counters.keys(){
+            if (self.is_counter_newer(elevator_id, world_view, me_resurrected) == true) && !other_resurrected{
+                self.set_write_counter(*elevator_id, *world_view.get_elevator_write_counter(*elevator_id));
+            }
+        }
+    }
+
+    //to be kept here
+    fn update_my_heart_beat_counters(&mut self, elevator_id: u64, world_view: &WorldView, me_resurrected: bool, other_resurrected: bool){
+        
+        if (self.is_counter_newer(&elevator_id, world_view, me_resurrected) == true) && !other_resurrected{
+            let incoming_heart_beat_counters: &HashMap<u64, u16> = world_view.get_heart_beat_counters();
+            for id in incoming_heart_beat_counters.keys(){
+                let value: &u16 = world_view.get_heart_beat(elevator_id);
+                if *id != self.get_id(){
+                    self.set_heart_beat(*id, *value);
+                }
+            }
+        }
+    }
+
+    //to be kept here
+    fn update_cab_ack_barriers(&mut self, elevator_id: u64, world_view: &WorldView, me_resurrected: bool, other_resurrected: bool){
+
+        let my_id = self.get_id();
+
+        if self.is_counter_newer(&elevator_id, world_view, me_resurrected) == true && !other_resurrected{
+
+            if let Some(incoming_elevator) = world_view.elevator_statuses.get(&elevator_id){
+                let incoming_cab_orders = incoming_elevator.get_cab_requests();
+                for order in incoming_cab_orders{
+                    if !order.get_ack_barrier().contains(&my_id){
+                        let my_local_cab_requests = self.get_mut_elevator(elevator_id).get_mut_cab_requests();
+                        if let Some(my_matching_order) = my_local_cab_requests.iter_mut().find(|o| o.get_order_id() == order.get_order_id()){
+                            my_matching_order.insert_into_ack_barrier(my_id);
+                        }
+                        
+                    }
+                }
+            }
+
+            if let Some(my_elevator) = world_view.elevator_statuses.get(&my_id){
+                let my_cab_requests = my_elevator.get_cab_requests();
+                let my_local_elevator = self.get_mut_elevator(my_id);
+                let my_local_cab_requests = my_local_elevator.get_mut_cab_requests();
+                for order in my_cab_requests{
+                    if let Some(my_matching_order) = my_local_cab_requests.iter_mut().find(|o| o.get_order_id() == order.get_order_id()){
+                        for id in order.get_ack_barrier(){
+                            if !my_matching_order.get_ack_barrier().contains(id){
+                                my_matching_order.insert_into_ack_barrier(*id);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn update_hall_ack_barriers(&mut self, elevator_id: u64, world_view: &WorldView, me_resurrected: bool, other_resurrected: bool){
+
+        if (self.is_counter_newer(&elevator_id, world_view, me_resurrected) == true) && !other_resurrected{
 
             let incoming_hall_order_queue: &HashMap<u64, Order> = world_view.get_order_queue();
 
@@ -473,13 +602,38 @@ impl WorldView {
         return &self.write_counter
     }
 
+    fn get_elevator_write_counter(&self, elevator_id: u64) -> &u64{
+        match self.get_write_counter().get(&elevator_id){
+            Some(write_counter) => return write_counter,
+            None => return &0
+        }
+    }
+
     fn get_mut_write_counter(&mut self) -> &mut HashMap<u64, u64>{
         return &mut self.write_counter
     }
+
+    fn set_write_counter(&mut self, elevator_id: u64, value: u64) {
+        match self.get_mut_write_counter().get_mut(&elevator_id){
+            Some(counter) => *counter = value,
+            None => {},
+        }
+    }
  
-    pub fn increment_write_counter(&mut self, elevator_id: &u64) {
+    pub fn increment_write_counter(&mut self, elevator_id: &u64){
         let counter = self.write_counter.entry(*elevator_id).or_insert(0);
         *counter = counter.wrapping_add(1);
+    }
+
+    fn get_unknown_counter(&mut self, world_view: &WorldView, elevetor_id: u64){
+        
+        if !self.get_write_counter().keys().any(|k| k == &elevetor_id){
+                let incoming_write_counter: &u64 = match world_view.get_write_counter().get(&elevetor_id){
+                    Some(counter) => counter,
+                    None => &0,
+                };
+            self.get_mut_write_counter().insert(elevetor_id, *incoming_write_counter);
+        }
     }
 
     //synchronizing functions
@@ -537,11 +691,17 @@ impl WorldView {
 
         for id in other_last_recorded_session_ids.keys(){
 
+            self.get_unknown_counter(&world_view, *id);
+
             let mut is_newer: bool = false;
             is_newer = self.is_counter_newer(id, &world_view, me_resurrected);
 
             if is_newer && !other_resurrected{
-                let my_stored_elevator: &mut Elevator = self.get_mut_elevator(id.clone());
+                if !self.elevator_statuses.contains_key(id){
+                    self.elevator_statuses.insert(*id, world_view.get_elevator(*id).clone());
+                }
+
+                let my_stored_elevator: &mut Elevator = self.get_mut_elevator(id.clone()); //what if not yet stored?
                 let other_stored_elevator: &Elevator = world_view.get_elevator(id.clone());
 
                 my_stored_elevator.set_behavior(*other_stored_elevator.get_behaviour()); 
@@ -553,17 +713,34 @@ impl WorldView {
             }
         }
 
-        //fix submodules 
         let incoming_hall_order_queue: &HashMap<u64, Order> = world_view.get_order_queue();
-        update_my_hall_order_queue(incoming_hall_order_queue);
+        update_my_hall_order_queue(other_id, world_view, me_resurrected, other_resurrected);
 
-        //implement cyclic counter and res check. Move into seperate function.
-        update_all_ack_barriers(incoming_hall_order_queue);
-
-        //TODO: ensure only confimed orders can be taken in decision.
+        update_hall_ack_barriers(incoming_hall_order_queue);
+        
         self.order_status_manager(my_hall_order_queue);
+        self.cab_order_status_manager();
 
-        self.increment_write_counter(&self.get_id());
+        self.update_cab_ack_barriers(&world_view, me_resurrected, other_resurrected);
+        self.update_my_heart_beat_counters(other_id, &world_view, me_resurrected, other_resurrected);
+        self.update_my_write_counters(&world_view, me_resurrected, other_resurrected);
+        self.increment_write_counter(&my_id);
+
+        for id in self.recorded_session_ids.keys(){
+            if (*id != my_id && *id != other_id){
+                self.increment_heart_beat(*id);
+            }
+            if self.get_heart_beat(*id) >= &300{
+                self.get_mut_elevator(*id).set_dead_or_alive(DeadOrAlive::Dead);
+            }
+        }
+
+        self.set_heart_beat(other_id, 0);
+        if self.get_elevator(other_id).get_dead_or_alive() == &DeadOrAlive::Dead{
+            self.get_mut_elevator(other_id).set_dead_or_alive(DeadOrAlive::Alive);
+        }
+
+
     }      
     
 
