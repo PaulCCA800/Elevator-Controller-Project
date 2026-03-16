@@ -1,16 +1,15 @@
-use std::{collections::{HashMap, HashSet, VecDeque}, hash::Hash};
-use serde::{Deserialize, Serialize};
-use rand::Rng;
+use std::collections::VecDeque;
+use serde::{Serialize, Deserialize};
 
-use crate::memory::orders{}
+use crate::memory::orders::{Order};
 
-#[derive(Copy,Clone,Eq, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Copy,Clone,Eq, PartialEq, Debug)]
 pub enum DeadOrAlive {
     Dead,
     Alive,
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Copy, Clone, Eq, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
 pub enum Behaviour {
     Idle,
@@ -18,13 +17,13 @@ pub enum Behaviour {
     DoorOpen,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Serialize, Deserialize, Copy, Clone)]
 pub enum Obstruction {
     Obstructed,
     Clear,
 }
 
-#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub enum ElevatorDirection {
     Up,
@@ -32,7 +31,7 @@ pub enum ElevatorDirection {
     Stop,
 }
 
-#[derive(Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Elevator {
     dead_or_alive: DeadOrAlive,
     elevator_id: u64,

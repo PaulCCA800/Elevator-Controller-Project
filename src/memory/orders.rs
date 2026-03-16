@@ -1,22 +1,18 @@
-use std::{collections::{HashMap, HashSet, VecDeque}, hash::Hash};
-use serde::{Deserialize, Serialize};
-use rand::Rng;
+use serde::{Serialize, Deserialize};
 
-use crate::misc::generate_id;
-
-#[derive(Copy, Clone)]
+#[derive(Serialize, Deserialize, Copy, Clone, PartialEq)]
 pub enum OrderType {
     Cab,
     Hall,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq)]
 pub enum OrderDirection {
     Up,
     Down,
 }
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Copy, Clone, Eq, PartialEq)]
 pub enum OrderStatus {
     Unconfirmed,
     Confirmed,
@@ -24,7 +20,7 @@ pub enum OrderStatus {
     ReadyForDeletion,
 }
 
-#[derive(Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct Order {
     order_id: u64,
     floor: u8,

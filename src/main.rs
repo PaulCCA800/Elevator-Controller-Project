@@ -9,6 +9,7 @@ pub mod message;
 mod mem;
 mod misc;
 mod dec;
+mod memory;
 
 use crate::mem::{Matrix, MatrixCmd, Elevator};
 use crate::message::message::UdpMsg;
