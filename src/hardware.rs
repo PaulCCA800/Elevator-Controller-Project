@@ -1,6 +1,7 @@
 pub mod
 hardware
 {
+    use std::collections::VecDeque;
     use std::sync::mpsc::{Receiver, Sender};
     use std::thread::{self};
     use std::time::Duration;
@@ -8,9 +9,11 @@ hardware
     use crossbeam_channel as cbc;
     use driver_rust::elevio::poll::CallButton;
 
+    use crate::message::memory_msg::MemoryData;
     use crate::message::{Message, MessageContent};
     use crate::message::hardware_msg::{ConvertedCallButton, HardwareData};
-    use crate::memory::order::{Order, OrderDirection};
+    use crate::memory::order::{Order};
+    use crate::memory::elevator::ElevatorStatusCommand;
 
     const LOCAL_ADDR    : &str = "localhost:15657";
     const FLOOR_COUNT   : u8 = 4;
@@ -68,15 +71,19 @@ hardware
 
         thread::spawn(move || 
         {
-            let mut order_list: Vec<Order> = vec![];
-            let mut hardware_direction: OrderDirection = OrderDirection::Up;
+
+            let mut order_queue: VecDeque<Order> = VecDeque::new();
+            let mut machine_id: u64 = 0;
 
             loop
             { 
                 while let Ok(cmd) = recv.recv() {
-                    if let Ok(elevator_cmd) = cmd.try_into_hardware(){
-                        elevator_command_execute(&elevator, elevator_cmd);
+                    if let MessageContent::Memory(MemoryData{ data: ElevatorStatusCommand::SetCabRequests{elevator_id, orders}}) = cmd.data {
+                        machine_id = elevator_id;
+                        order_queue = orders;
                     }
+                    
+                        //elevator_command_execute(&elevator, elevator_cmd);
                 }
             }            
         });
