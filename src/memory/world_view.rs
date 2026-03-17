@@ -181,7 +181,7 @@ impl WorldView {
         }
     }
 
-    fn cab_order_status_manager(&mut self){
+    fn cab_order_status_manager(&mut self, num_elevators: u8){
         let mut orders_to_remove: Vec<Order> = Vec::new();
 
         let my_cab_orders = self.get_mut_elevator(self.get_id()).get_mut_cab_requests();
@@ -189,17 +189,17 @@ impl WorldView {
         
                 let unique_elevator_ids_count = order.get_ack_barrier().iter().collect::<HashSet<_>>().len();
 
-                if order.get_order_status() == &OrderStatus::Unconfirmed && unique_elevator_ids_count == 3{
+                if order.get_order_status() == &OrderStatus::Unconfirmed && unique_elevator_ids_count == num_elevators as usize{
                     order.set_order_status(OrderStatus::Confirmed);
                     order.get_mut_ack_barrier().clear();
                 }
 
-                else if order.get_order_status() == &OrderStatus::Completed && unique_elevator_ids_count == 3{
+                else if order.get_order_status() == &OrderStatus::Completed && unique_elevator_ids_count == num_elevators as usize{
                     order.set_order_status(OrderStatus::ReadyForDeletion);
                     order.get_mut_ack_barrier().clear();
                 }
 
-                else if order.get_order_status() == &OrderStatus::ReadyForDeletion && unique_elevator_ids_count == 3{
+                else if order.get_order_status() == &OrderStatus::ReadyForDeletion && unique_elevator_ids_count == num_elevators as usize{
                     orders_to_remove.push(order.clone());
                 }
             }
@@ -365,12 +365,19 @@ impl WorldView {
             }
         }
 
+        let mut elevators_alive_count: u8 = 1;
+        for elevator in self.get_elevator_statuses().values(){
+            if elevator.get_dead_or_alive() == &DeadOrAlive::Alive{
+                elevators_alive_count += 1;
+            }
+        }
+
         self.update_my_hall_order_queue(other_id, &world_view, me_resurrected, other_resurrected);
 
         self.update_hall_ack_barriers(other_id, &world_view, me_resurrected, other_resurrected);
         
-        self.hall_order_queue.hall_order_status_manager();
-        self.cab_order_status_manager();
+        self.hall_order_queue.hall_order_status_manager(elevators_alive_count);
+        self.cab_order_status_manager(elevators_alive_count);
 
         self.update_my_write_counters(&world_view, me_resurrected, other_resurrected);
 

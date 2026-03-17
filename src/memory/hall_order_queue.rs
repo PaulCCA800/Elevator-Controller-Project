@@ -66,24 +66,24 @@ impl HallOrderQueue{
         }
     }
 
-    pub fn hall_order_status_manager(&mut self){
+    pub fn hall_order_status_manager(&mut self, num_elevators: u8){
         let mut orders_to_remove: Vec<u64> = Vec::new();
             for order in self.hall_order_queue.values_mut(){
 
                 let order_id: u64 = order.get_order_id().clone();
                 let unique_elevator_ids_count = order.get_ack_barrier().iter().collect::<HashSet<_>>().len();
 
-                if order.get_order_status() == &OrderStatus::Unconfirmed && unique_elevator_ids_count == 3{
+                if order.get_order_status() == &OrderStatus::Unconfirmed && unique_elevator_ids_count == num_elevators as usize{
                     order.set_order_status(OrderStatus::Confirmed);
                     order.get_mut_ack_barrier().clear();
                 }
 
-                else if order.get_order_status() == &OrderStatus::Completed && unique_elevator_ids_count == 3{
+                else if order.get_order_status() == &OrderStatus::Completed && unique_elevator_ids_count == num_elevators as usize{
                     order.set_order_status(OrderStatus::ReadyForDeletion);
                     order.get_mut_ack_barrier().clear();
                 }
 
-                else if order.get_order_status() == &OrderStatus::ReadyForDeletion && unique_elevator_ids_count == 3{
+                else if order.get_order_status() == &OrderStatus::ReadyForDeletion && unique_elevator_ids_count == num_elevators as usize{
                     orders_to_remove.push(order_id);
                 }
             }
