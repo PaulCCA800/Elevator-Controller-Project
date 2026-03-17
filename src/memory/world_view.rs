@@ -1,5 +1,6 @@
 use::serde::{Serialize, Deserialize};
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::f128::consts::E;
 use std::hash::Hash;
 use std::sync::mpsc::{self, Receiver};
 use std::time::{Duration, Instant};
@@ -454,16 +455,20 @@ impl WorldView {
         loop {
             match rx_elevator.recv_timeout(Duration::from_millis(50)) {
                 Ok(command) => {
-                    if let ElevatorStatusCommand::SynchronizeWorldView {world_view} = &command {
+                    let sender_id = match &command {
+                        ElevatorStatusCommand::SynchronizeWorldView{world_view} => Some(world_view.get_id()),
+                        _ => None,
+                    };
 
-                        let sender_id = world_view.get_id();
+                    my_local_world_view.edit_elevator_status(command);
+
+                    if let Some(sender_id) = sender_id {
 
                         last_seen_timers.insert(sender_id, Instant::now());
 
                         my_local_world_view.get_mut_elevator(sender_id)
                                            .set_dead_or_alive(DeadOrAlive::Alive);
                     }
-                        my_local_world_view.edit_elevator_status(command);
                 }
 
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
