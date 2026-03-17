@@ -1,12 +1,17 @@
 use::serde::{Serialize, Deserialize};
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::hash::Hash;
+use std::sync::mpsc::{self, Receiver};
+use std::time::{Duration, Instant};
 
 use crate::memory::elevator::{DeadOrAlive, Behaviour, Obstruction, ElevatorDirection, Elevator};
 use crate::memory::hall_order_queue::HallOrderQueue;
 use crate::memory::orders::{OrderStatus, Order};
+use crate::misc::generate_id;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum ElevatorStatusCommand {
+    SetDeadOrAlive {elevator_id: u64, dead_or_alive: DeadOrAlive},
     SetBehaviour {elevator_id: u64, behavior: Behaviour},
     SetObstruction {elevator_id: u64, obstruction: Obstruction},
     SetFloor {elevator_id: u64, floor: u8},
@@ -132,6 +137,10 @@ impl WorldView {
     pub fn get_mut_elevator(&mut self, elevator_id: u64) -> &mut Elevator {
         return self.elevator_statuses.get_mut(&elevator_id)
         .expect(&format!("get_mut error: no elevator found at {}.", elevator_id));
+    }
+
+    pub fn set_elev_dead_or_alive(&mut self, elevator_id: u64, dead_or_alive: DeadOrAlive) {
+        self.get_mut_elevator(elevator_id).set_dead_or_alive(dead_or_alive);
     }
 
     pub fn set_elev_current_floor(&mut self, elevator_id: u64, floor: u8) {
@@ -438,6 +447,9 @@ impl WorldView {
 
     pub fn edit_elevator_status(&mut self, command: ElevatorStatusCommand) {
         match command { 
+            ElevatorStatusCommand::SetDeadOrAlive {elevator_id, dead_or_alive}
+            => self.set_elev_dead_or_alive(elevator_id, dead_or_alive),
+
             ElevatorStatusCommand::SetFloor {elevator_id, floor} 
             => self.set_elev_current_floor(elevator_id, floor),
 
@@ -454,13 +466,13 @@ impl WorldView {
             => self.set_elev_cab_orders(elevator_id, orders),
 
             ElevatorStatusCommand::AddCabRequest {elevator_id, order}
-            =>self.add_elev_cab_order(elevator_id, order),
+            => self.add_elev_cab_order(elevator_id, order),
 
             ElevatorStatusCommand::RemoveCabRequest {elevator_id}
-            =>self.remove_elev_cab_order(elevator_id),
+            => self.remove_elev_cab_order(elevator_id),
 
             ElevatorStatusCommand::SynchronizeWorldView {world_view}
-            =>self.synchronize_world_view(world_view),
+            => self.synchronize_world_view(world_view),
 
         }
     }
@@ -493,4 +505,24 @@ impl WorldView {
         }
     }
 
+    /*function beneath is to be called using:
+    let handle = std::thread::spawn(move || {memory_thread(memory_rx);});*/
+    pub fn memory_thread(rx_elevator: Receiver<ElevatorStatusCommand>, rx_hall_orders: Receiver<OrderQueueCommand>) {
+
+        let mut last_seen_timers: HashMap<u64, Instant> = HashMap::new();
+        last_seen_timers.insert(1, Instant::now());
+        last_seen_timers.insert(2, Instant::now());
+        last_seen_timers.insert(3, Instant::now());
+
+        let my_elevator_id: u64 = generate_id();
+        let my_session_id: u64 = rand::random(); 
+        let mut my_local_world_view = WorldView::new(my_elevator_id, my_session_id);
+
+        while let Ok(command) = rx_elevator.recv(){
+            if let ElevatorStatusCommand::SynchronizeWorldView {world_view} = &command {
+                let sender_id = world_view.get_id();
+                last_seen_timers.insert(sender_id, Instant::now());
+            }
+        }
+    }
 }
