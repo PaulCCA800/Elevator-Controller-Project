@@ -3,18 +3,19 @@ hardware
 {
     use std::sync::mpsc::{Receiver, Sender};
     use std::thread::{self};
-    use std::time::{self, Duration};
+    use std::time::Duration;
     use driver_rust::elevio;
     use crossbeam_channel as cbc;
     use driver_rust::elevio::poll::CallButton;
 
     use crate::message::{Message, MessageContent};
     use crate::message::hardware_msg::{ConvertedCallButton, HardwareData};
+    use crate::memory::order::{Order, OrderDirection};
 
     const LOCAL_ADDR    : &str = "localhost:15657";
     const FLOOR_COUNT   : u8 = 4;
     const POOL_DUR      : Duration = Duration::from_millis(10);
-    
+
     pub fn
     hardware_loop(send: Sender<Message>, recv: Receiver<Message>)
     {
@@ -63,23 +64,25 @@ hardware
                     send.send(obstruction_handler(o.unwrap())).unwrap();
                 }
             }
-
-            thread::sleep(time::Duration::from_millis(100));
         }});
 
         thread::spawn(move || 
         {
+            let mut order_list: Vec<Order> = vec![];
+            let mut hardware_direction: OrderDirection = OrderDirection::Up;
+
             loop
-            {
-                while let Ok(cmd) = recv.try_recv() {
+            { 
+                while let Ok(cmd) = recv.recv() {
                     if let Ok(elevator_cmd) = cmd.try_into_hardware(){
                         elevator_command_execute(&elevator, elevator_cmd);
                     }
                 }
-                thread::sleep(time::Duration::from_millis(10));
             }            
         });
     }
+
+    
 
     fn
     call_button_handler(cb: CallButton) -> Message
