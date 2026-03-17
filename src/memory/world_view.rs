@@ -38,7 +38,6 @@ pub struct WorldView {
     elevator_statuses: HashMap <u64, Elevator>,
     hall_order_queue: HallOrderQueue,
     write_counter: HashMap <u64, u64>,
-    heart_beat_counters: HashMap<u64, u16>,
     recorded_session_ids: HashMap<u64, u64>,
 }
 
@@ -51,7 +50,6 @@ impl WorldView {
             elevator_statuses: Self::initialize_elevator_statuses(my_elevator_id),
             hall_order_queue: HallOrderQueue::new(),
             write_counter: Self::initialize_write_counter(my_elevator_id),
-            heart_beat_counters: Self::initialize_heart_beat_counters(my_elevator_id),
             recorded_session_ids: Self::initialize_recorded_session_ids(my_elevator_id, session_id),
             }
     }
@@ -66,12 +64,6 @@ impl WorldView {
         let mut initial_write_counter = HashMap::new();
         initial_write_counter.insert(id, 0 as u64);
         return initial_write_counter
-    }
-
-    fn initialize_heart_beat_counters(id: u64) -> HashMap<u64, u16>{
-        let mut initial_heart_beat_counters: HashMap<u64, u16> = HashMap::new();
-        initial_heart_beat_counters.insert(id, 0 as u16);
-        return initial_heart_beat_counters
     }
 
     fn initialize_recorded_session_ids(elevator_id: u64, session_id: u64) -> HashMap<u64, u64>{
@@ -90,35 +82,6 @@ impl WorldView {
 
     pub fn get_elevator_statuses(&self) -> &HashMap<u64, Elevator>{
         return &self.elevator_statuses;
-    }
-
-    pub fn get_heart_beat_counters(&self) -> &HashMap<u64, u16>{
-        return &self.heart_beat_counters
-    }
-
-    pub fn get_mut_heart_beat_counters(&mut self) -> &mut HashMap<u64, u16>{
-        return &mut self.heart_beat_counters
-    }
-
-    pub fn get_heart_beat(&self, elevator_id: u64) -> &u16{
-        match self.get_heart_beat_counters().get(&elevator_id){
-            Some(heart_beat_counter) => return heart_beat_counter,
-            None => return &0
-        }
-    }
-
-    pub fn increment_heart_beat(&mut self, elevator_id: u64){
-        match self.get_mut_heart_beat_counters().get_mut(&elevator_id){
-            Some(heart_beat_counter) => {*heart_beat_counter += 1},
-            None => {},
-        } 
-    }
-
-    fn set_heart_beat(&mut self, elevator_id: u64, value: u16){
-        match self.get_mut_heart_beat_counters().get_mut(&elevator_id){
-            Some(heart_beat_counter) => {*heart_beat_counter = value},
-            None => {},
-        } 
     }
 
     fn get_recorded_session_ids(&self) -> &HashMap<u64, u64>{
@@ -271,19 +234,6 @@ impl WorldView {
         }
     }
 
-    fn update_my_heart_beat_counters(&mut self, elevator_id: u64, world_view: &WorldView, me_resurrected: bool, other_resurrected: bool){
-        
-        if (self.is_counter_newer(&elevator_id, world_view, me_resurrected) == true) && !other_resurrected{
-            let incoming_heart_beat_counters: &HashMap<u64, u16> = world_view.get_heart_beat_counters();
-            for id in incoming_heart_beat_counters.keys(){
-                let value: &u16 = world_view.get_heart_beat(elevator_id);
-                if *id != self.get_id(){
-                    self.set_heart_beat(*id, *value);
-                }
-            }
-        }
-    }
-
     fn update_cab_ack_barriers(&mut self, elevator_id: u64, world_view: &WorldView, me_resurrected: bool, other_resurrected: bool){
 
         let my_id = self.get_id();
@@ -421,23 +371,7 @@ impl WorldView {
         self.hall_order_queue.hall_order_status_manager();
         self.cab_order_status_manager();
 
-        self.update_my_heart_beat_counters(other_id, &world_view, me_resurrected, other_resurrected);
         self.update_my_write_counters(&world_view, me_resurrected, other_resurrected);
-
-        let ids: Vec<u64> = self.recorded_session_ids.keys().copied().collect();
-        for id in ids{
-            if id != my_id && id != other_id{
-                self.increment_heart_beat(id);
-            }
-            if self.get_heart_beat(id) >= &300{
-                self.get_mut_elevator(id).set_dead_or_alive(DeadOrAlive::Dead);
-            }
-        }
-
-        self.set_heart_beat(other_id, 0);
-        if self.get_elevator(other_id).get_dead_or_alive() == &DeadOrAlive::Dead{
-            self.get_mut_elevator(other_id).set_dead_or_alive(DeadOrAlive::Alive);
-        }
 
         self.increment_write_counter(&my_id);
     }      
@@ -509,20 +443,48 @@ impl WorldView {
     let handle = std::thread::spawn(move || {memory_thread(memory_rx);});*/
     pub fn memory_thread(rx_elevator: Receiver<ElevatorStatusCommand>, rx_hall_orders: Receiver<OrderQueueCommand>) {
 
-        let mut last_seen_timers: HashMap<u64, Instant> = HashMap::new();
-        last_seen_timers.insert(1, Instant::now());
-        last_seen_timers.insert(2, Instant::now());
-        last_seen_timers.insert(3, Instant::now());
-
         let my_elevator_id: u64 = generate_id();
         let my_session_id: u64 = rand::random(); 
         let mut my_local_world_view = WorldView::new(my_elevator_id, my_session_id);
 
-        while let Ok(command) = rx_elevator.recv(){
-            if let ElevatorStatusCommand::SynchronizeWorldView {world_view} = &command {
-                let sender_id = world_view.get_id();
-                last_seen_timers.insert(sender_id, Instant::now());
+        let mut last_seen_timers: HashMap<u64, Instant> = HashMap::new();
+        let timeout = Duration::from_secs(3);
+        last_seen_timers.insert(my_elevator_id, Instant::now());
+
+        loop {
+            match rx_elevator.recv_timeout(Duration::from_millis(50)) {
+                Ok(command) => {
+                    if let ElevatorStatusCommand::SynchronizeWorldView {world_view} = &command {
+
+                        let sender_id = world_view.get_id();
+
+                        last_seen_timers.insert(sender_id, Instant::now());
+
+                        my_local_world_view.get_mut_elevator(sender_id)
+                                           .set_dead_or_alive(DeadOrAlive::Alive);
+                    }
+                        my_local_world_view.edit_elevator_status(command);
+                }
+
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                    println!("elevator {} received no broadcast in the last 50 ms", my_elevator_id);
+                }
+
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                    break;
+                }
             }
+
+            for (id, last_seen) in &last_seen_timers {
+                if *id == my_elevator_id {
+                    continue;
+                }
+                if last_seen.elapsed() > timeout {
+                    my_local_world_view
+                        .get_mut_elevator(*id)
+                        .set_dead_or_alive(DeadOrAlive::Dead);
+                }
+            }   
         }
     }
 }
