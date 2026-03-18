@@ -14,7 +14,7 @@ hardware
     use crate::message::memory_msg::MemoryData;
     use crate::message::{Message, MessageContent};
     use crate::message::hardware_msg::{ConvertedCallButton, HardwareData};
-    use crate::memory::order::{self, Order, OrderDirection, OrderStatus, OrderType};
+    use crate::memory::order::{Order, OrderDirection, OrderStatus, OrderType};
     use crate::memory::elevator::ElevatorStatusCommand;
 
     const LOCAL_ADDR    : &str = "localhost:15657";
@@ -158,6 +158,37 @@ hardware
                             elevator_command_execute(&elevator, HardwareData::SetCallButtonLight{floor: index, call: 2, status: floor.cab});
                         }
 
+                        {
+                            let mut elevator_data = current_elevator_state.lock().unwrap();
+                            let new_dir = match elevator_data.motor_direction {
+                                OrderDirection::Up => {
+                                    floor_requests.iter().skip((elevator_data.current_floor as usize) + 1)
+                                        .chain(floor_requests.iter().take(elevator_data.current_floor as usize))
+                                        .find(|floor| floor.up == true)
+                                        .map(|_| OrderDirection::Up)
+                                        .or_else(|| {
+                                            Some(dir_swap())
+                                        })
+                                },
+                                OrderDirection::Down => {
+                                    floor_requests.iter().skip((elevator_data.current_floor as usize) - 1)
+                                        .chain(floor_requests.iter().take(elevator_data.current_floor as usize))
+                                        .find(|floor| floor.up == true)
+                                        .map(|_| OrderDirection::Down)
+                                        .or_else(|| {
+                                            Some(dir_swap())
+                                        })
+                                },
+                                OrderDirection::Stop => {
+                                    // Add functionality to just select from the first order in the list
+                                    None
+                                }
+                            };
+                            match new_dir {
+                                Some(dir) => elevator_data.motor_direction = dir,
+                                None => ()
+                            }
+                        }
                         // Find next stop
                     }
                 }
@@ -165,6 +196,8 @@ hardware
                 {
                     let mut elevator_data = current_elevator_state.lock().unwrap();
                     if elevator_data.obstruction == true || elevator_data.stop_button == true {
+                        elevator_data.motor_direction = OrderDirection::Stop;
+                    } else if elevator_data.current_floor == elevator_data.next_stop {
                         elevator_data.motor_direction = OrderDirection::Stop;
                     }
                 }
@@ -180,6 +213,10 @@ hardware
                 }
             }            
         });
+    }
+
+    fn dir_swap() -> OrderDirection{
+        OrderDirection::Up
     }
 
     fn
