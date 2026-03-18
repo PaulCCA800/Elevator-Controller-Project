@@ -12,12 +12,17 @@ hardware
     use crate::message::memory_msg::MemoryData;
     use crate::message::{Message, MessageContent};
     use crate::message::hardware_msg::{ConvertedCallButton, HardwareData};
-    use crate::memory::order::{Order};
+    use crate::memory::order::{self, Order, OrderStatus, OrderType};
     use crate::memory::elevator::ElevatorStatusCommand;
 
     const LOCAL_ADDR    : &str = "localhost:15657";
     const FLOOR_COUNT   : u8 = 4;
     const POOL_DUR      : Duration = Duration::from_millis(10);
+
+    struct floor_direction {
+        up: bool, 
+        down: bool
+    }
 
     pub fn
     hardware_loop(send: Sender<Message>, recv: Receiver<Message>)
@@ -75,14 +80,35 @@ hardware
             let mut order_queue: VecDeque<Order> = VecDeque::new();
             let mut machine_id: u64 = 0;
 
+
+
             loop
             { 
-                while let Ok(cmd) = recv.recv() {
+                if let Ok(cmd) = recv.recv() {
                     if let MessageContent::Memory(MemoryData{ data: ElevatorStatusCommand::SetCabRequests{elevator_id, orders}}) = cmd.data {
                         machine_id = elevator_id;
                         order_queue = orders;
                     }
                     
+                    if order_queue.len() > 0 {
+                        order_queue.retain(|order| order.get_order_status() == &OrderStatus::Confirmed);
+
+                        let mut cab_list = order_queue.clone();
+                        let mut hall_list = order_queue.clone();
+
+                        cab_list.retain(|call| call.get_order_type() == &OrderType::Cab);
+                        hall_list.retain(|hall| hall.get_order_type() == &OrderType::Hall);
+
+                        for cab in cab_list {
+                            
+                        }
+
+                        for hall in hall_list {
+
+                        }
+
+                    }
+
                         //elevator_command_execute(&elevator, elevator_cmd);
                 }
             }            

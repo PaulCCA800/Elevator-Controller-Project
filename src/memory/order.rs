@@ -6,7 +6,7 @@ pub enum OrderDirection {
     Down,
 }
 
-#[derive(Copy, Clone, Serialize, Deserialize)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize)]
 pub enum OrderType {
     Cab,
     Hall,
