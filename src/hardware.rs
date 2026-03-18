@@ -12,16 +12,25 @@ hardware
     use crate::message::memory_msg::MemoryData;
     use crate::message::{Message, MessageContent};
     use crate::message::hardware_msg::{ConvertedCallButton, HardwareData};
-    use crate::memory::order::{self, Order, OrderStatus, OrderType};
+    use crate::memory::order::{self, Order, OrderDirection, OrderStatus, OrderType};
     use crate::memory::elevator::ElevatorStatusCommand;
 
     const LOCAL_ADDR    : &str = "localhost:15657";
     const FLOOR_COUNT   : u8 = 4;
+    const ELEV_HEIGHT   : usize = 4;
     const POOL_DUR      : Duration = Duration::from_millis(10);
 
-    struct floor_direction {
-        up: bool, 
-        down: bool
+    #[derive(Debug)]
+    struct FloorDirection {
+        pub up: bool, 
+        pub down: bool, 
+        pub cab: bool
+    }
+
+    impl FloorDirection {
+        pub fn new() -> Self {
+            Self { up: false, down: false, cab: false }
+        }
     }
 
     pub fn
@@ -76,20 +85,17 @@ hardware
 
         thread::spawn(move || 
         {
+            loop { 
+                // Reset Queue
+                let mut order_queue: VecDeque<Order> = VecDeque::new();
 
-            let mut order_queue: VecDeque<Order> = VecDeque::new();
-            let mut machine_id: u64 = 0;
-
-
-
-            loop
-            { 
                 if let Ok(cmd) = recv.recv() {
-                    if let MessageContent::Memory(MemoryData{ data: ElevatorStatusCommand::SetCabRequests{elevator_id, orders}}) = cmd.data {
-                        machine_id = elevator_id;
+                    if let MessageContent::Memory(MemoryData{ data: ElevatorStatusCommand::SetCabRequests{elevator_id: _, orders}}) = cmd.data {
                         order_queue = orders;
                     }
                     
+                    let mut floor_requests: [FloorDirection; ELEV_HEIGHT] = std::array::from_fn(|_| FloorDirection::new());
+
                     if order_queue.len() > 0 {
                         order_queue.retain(|order| order.get_order_status() == &OrderStatus::Confirmed);
 
@@ -100,13 +106,22 @@ hardware
                         hall_list.retain(|hall| hall.get_order_type() == &OrderType::Hall);
 
                         for cab in cab_list {
-                            
+                            floor_requests[*cab.get_floor() as usize].cab = true;
                         }
 
                         for hall in hall_list {
-
+                            if hall.get_direction() == &OrderDirection::Up {
+                                floor_requests[*hall.get_floor() as usize].up = true;
+                            } else {
+                                floor_requests[*hall.get_floor() as usize].down = true;
+                            }
                         }
 
+                        for (index, floor) in floor_requests.iter().enumerate().map(|(i, f)| (i as u8, f)) {
+                            elevator_command_execute(&elevator, HardwareData::SetCallButtonLight{floor: index, call: 0, status: floor.up});
+                            elevator_command_execute(&elevator, HardwareData::SetCallButtonLight{floor: index, call: 0, status: floor.down});
+                            elevator_command_execute(&elevator, HardwareData::SetCallButtonLight{floor: index, call: 0, status: floor.cab});
+                        }
                     }
 
                         //elevator_command_execute(&elevator, elevator_cmd);
@@ -114,8 +129,6 @@ hardware
             }            
         });
     }
-
-    
 
     fn
     call_button_handler(cb: CallButton) -> Message
@@ -157,36 +170,24 @@ hardware
     }
 
     fn
-    elevator_command_execute(elevator: &elevio::elev::Elevator, command: Message)
+    elevator_command_execute(elevator: &elevio::elev::Elevator, command: HardwareData)
     {
         match command
         {
-            Message{id: _, data: MessageContent::Hardware(content)} => 
-            {
-                match content
-                {
-                    HardwareData::SetMotorDirection(dir) =>
-                    {
-                        elevator.motor_direction(dir);
-                    },
-                    HardwareData::SetCallButtonLight { floor, call, status } =>
-                    {
-                        elevator.call_button_light(floor, call, status);
-                    },
-                    HardwareData::SetDoorLight(status) =>
-                    {
-                        elevator.door_light(status);
-                    }
-                    HardwareData::SetStopLight(status) =>
-                    {
-                        elevator.stop_button_light(status);
-                    },
-                    HardwareData::SetFloorIndicator(floor) =>
-                    {
-                        elevator.floor_indicator(floor);
-                    }
-                    _ => (),
-                }
+            HardwareData::SetMotorDirection(dir) => {
+                elevator.motor_direction(dir);
+            },
+            HardwareData::SetCallButtonLight { floor, call, status } => {
+                elevator.call_button_light(floor, call, status); 
+            },
+            HardwareData::SetDoorLight(status) => {
+                elevator.door_light(status);
+            }
+            HardwareData::SetStopLight(status) => {
+                elevator.stop_button_light(status);
+            },
+            HardwareData::SetFloorIndicator(floor) => {
+                elevator.floor_indicator(floor);
             }
             _ => (),
         }
