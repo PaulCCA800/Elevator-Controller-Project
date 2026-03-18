@@ -126,13 +126,12 @@ hardware
             loop { 
                 // Reset Queue
                 let mut order_queue: VecDeque<Order> = VecDeque::new();
-                
-                if let Ok(cmd) = recv.try_recv() {
+                let mut floor_requests: [FloorDirection; ELEV_HEIGHT] = std::array::from_fn(|_| FloorDirection::new());
+
+                if let Ok(cmd) = recv.recv_timeout(Duration::from_millis(10)) {
                     if let MessageContent::Memory(MemoryData{ data: ElevatorStatusCommand::SetCabRequests{elevator_id: _, orders}}) = cmd.data {
                         order_queue = orders;
                     }
-                    
-                    let mut floor_requests: [FloorDirection; ELEV_HEIGHT] = std::array::from_fn(|_| FloorDirection::new());
 
                     if order_queue.len() > 0 {
                         order_queue.retain(|order| order.get_order_status() == &OrderStatus::Confirmed);
@@ -157,59 +156,40 @@ hardware
                             elevator_command_execute(&elevator, HardwareData::SetCallButtonLight{floor: index, call: 1, status: floor.down});
                             elevator_command_execute(&elevator, HardwareData::SetCallButtonLight{floor: index, call: 2, status: floor.cab});
                         }
-
-                        {
-                            let mut elevator_data = current_elevator_state.lock().unwrap();
-                            let new_dir = match elevator_data.motor_direction {
-                                OrderDirection::Up => {
-                                    floor_requests.iter().skip((elevator_data.current_floor as usize) + 1)
-                                        .chain(floor_requests.iter().take(elevator_data.current_floor as usize))
-                                        .find(|floor| floor.up == true)
-                                        .map(|_| OrderDirection::Up)
-                                        .or_else(|| {
-                                            Some(dir_swap())
-                                        })
-                                },
-                                OrderDirection::Down => {
-                                    floor_requests.iter().skip((elevator_data.current_floor as usize) - 1)
-                                        .chain(floor_requests.iter().take(elevator_data.current_floor as usize))
-                                        .find(|floor| floor.up == true)
-                                        .map(|_| OrderDirection::Down)
-                                        .or_else(|| {
-                                            Some(dir_swap())
-                                        })
-                                },
-                                OrderDirection::Stop => {
-                                    // Add functionality to just select from the first order in the list
-                                    None
-                                }
-                            };
-                            match new_dir {
-                                Some(dir) => elevator_data.motor_direction = dir,
-                                None => ()
-                            }
-                        }
-                        // Find next stop
                     }
                 }
 
                 {
                     let mut elevator_data = current_elevator_state.lock().unwrap();
-                    if elevator_data.obstruction == true || elevator_data.stop_button == true {
-                        elevator_data.motor_direction = OrderDirection::Stop;
-                    } else if elevator_data.current_floor == elevator_data.next_stop {
-                        elevator_data.motor_direction = OrderDirection::Stop;
+                    let c_floor = elevator_data.current_floor as usize;
+
+                    if floor_requests[c_floor].cab || 
+                        (elevator_data.motor_direction == OrderDirection::Up && floor_requests[c_floor].up) ||
+                        (elevator_data.motor_direction == OrderDirection::Down && floor_requests[c_floor].down) {
+                            elevator_data.next_stop = elevator_data.current_floor;
+                    } else {
+                        match elevator_data.motor_direction {
+                            OrderDirection::Up => {
+
+                            },
+                            OrderDirection::Down => {
+
+                            },
+                            _ => ()
+                        }
                     }
+
                 }
 
                 {
-                    let elevator_data = current_elevator_state.lock().unwrap();
-                    let direction: u8 = match elevator_data.motor_direction {
-                        OrderDirection::Down    => DIRN_DOWN,
-                        OrderDirection::Up      => DIRN_UP,
-                        OrderDirection::Stop    => DIRN_STOP,
-                    };
-                    elevator_command_execute(&elevator, HardwareData::SetMotorDirection(direction));
+                    let mut elevator_data = current_elevator_state.lock().unwrap();
+                    if elevator_data.obstruction || elevator_data.stop_button || elevator_data.current_floor == elevator_data.next_stop {
+                        elevator_data.motor_direction = OrderDirection::Stop;
+                        elevator_command_execute(&elevator, HardwareData::SetMotorDirection(DIRN_STOP));
+                    } else  {
+                        let dir = if elevator_data.current_floor < elevator_data.next_stop {DIRN_UP} else {DIRN_DOWN};
+                        elevator_command_execute(&elevator, HardwareData::SetMotorDirection(dir));
+                    }
                 }
             }            
         });
@@ -217,6 +197,10 @@ hardware
 
     fn dir_swap() -> OrderDirection{
         OrderDirection::Up
+    }
+
+    fn stop_logic() {
+
     }
 
     fn
