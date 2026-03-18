@@ -99,32 +99,29 @@ hardware
                     if order_queue.len() > 0 {
                         order_queue.retain(|order| order.get_order_status() == &OrderStatus::Confirmed);
 
-                        let mut cab_list = order_queue.clone();
-                        let mut hall_list = order_queue.clone();
-
-                        cab_list.retain(|call| call.get_order_type() == &OrderType::Cab);
-                        hall_list.retain(|hall| hall.get_order_type() == &OrderType::Hall);
-
-                        for cab in cab_list {
-                            floor_requests[*cab.get_floor() as usize].cab = true;
-                        }
-
-                        for hall in hall_list {
-                            if hall.get_direction() == &OrderDirection::Up {
-                                floor_requests[*hall.get_floor() as usize].up = true;
-                            } else {
-                                floor_requests[*hall.get_floor() as usize].down = true;
+                        for order in order_queue {
+                            match *order.get_order_type() {
+                                OrderType::Cab => {
+                                    floor_requests[*order.get_floor() as usize].cab = true;
+                                },
+                                OrderType::Hall => {
+                                    if *order.get_direction() == OrderDirection::Up {
+                                        floor_requests[*order.get_floor() as usize].up = true;
+                                    } else {
+                                        floor_requests[*order.get_floor() as usize].down = true;
+                                    }
+                                }
+                                _ => ()
                             }
                         }
 
                         for (index, floor) in floor_requests.iter().enumerate().map(|(i, f)| (i as u8, f)) {
-                            elevator_command_execute(&elevator, HardwareData::SetCallButtonLight{floor: index, call: 0, status: floor.up});
-                            elevator_command_execute(&elevator, HardwareData::SetCallButtonLight{floor: index, call: 0, status: floor.down});
-                            elevator_command_execute(&elevator, HardwareData::SetCallButtonLight{floor: index, call: 0, status: floor.cab});
+                            elevator_command_execute(&elevator, HardwareData::SetCallButtonLight{floor: index, call: 1, status: floor.up});
+                            elevator_command_execute(&elevator, HardwareData::SetCallButtonLight{floor: index, call: 2, status: floor.down});
+                            elevator_command_execute(&elevator, HardwareData::SetCallButtonLight{floor: index, call: 3, status: floor.cab});
                         }
-                    }
 
-                        //elevator_command_execute(&elevator, elevator_cmd);
+                    }
                 }
             }            
         });
