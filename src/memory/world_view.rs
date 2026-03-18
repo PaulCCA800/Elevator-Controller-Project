@@ -1,8 +1,6 @@
 use::serde::{Serialize, Deserialize};
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::f128::consts::E;
-use std::hash::Hash;
-use std::sync::mpsc::{self, Receiver};
+use std::sync::mpsc::{Receiver};
 use std::time::{Duration, Instant};
 
 use crate::memory::elevator::{DeadOrAlive, Behaviour, Obstruction, ElevatorDirection, Elevator};
@@ -116,7 +114,7 @@ impl WorldView {
     }
 
     pub fn get_elev_behaviour(&self, elevator_id: u64) -> &Behaviour{
-        return &self.get_elevator(elevator_id).get_behaviour();
+        return self.get_elevator(elevator_id).get_behaviour();
     }
 
     pub fn set_elev_behaviour(&mut self, elevator_id: u64, behaviour: Behaviour) {
@@ -124,7 +122,7 @@ impl WorldView {
     }
 
     pub fn get_elev_obstruction(&self, elevator_id: u64) -> &Obstruction{
-        return &self.get_elevator(elevator_id).get_obstruction();
+        return self.get_elevator(elevator_id).get_obstruction();
     }
 
     pub fn set_elev_obstruction(&mut self, elevator_id: u64, obstruction: Obstruction) {
@@ -183,8 +181,9 @@ impl WorldView {
 
     fn cab_order_status_manager(&mut self, num_elevators: u8){
         let mut orders_to_remove: Vec<Order> = Vec::new();
+        let my_id = self.get_id();
 
-        let my_cab_orders = self.get_mut_elevator(self.get_id()).get_mut_cab_requests();
+        let my_cab_orders = self.get_mut_elevator(my_id).get_mut_cab_requests();
             for order in my_cab_orders.iter_mut(){
         
                 let unique_elevator_ids_count = order.get_ack_barrier().iter().collect::<HashSet<_>>().len();
