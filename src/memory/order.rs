@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 pub enum OrderDirection {
     Up,
     Down,
+    Stop
 }
 
 #[derive(Copy, Clone, PartialEq, Serialize, Deserialize)]

@@ -8,6 +8,7 @@ hardware
     use std::time::Duration;
     use driver_rust::elevio;
     use crossbeam_channel as cbc;
+    use driver_rust::elevio::elev::{DIRN_DOWN, DIRN_STOP, DIRN_UP};
     use driver_rust::elevio::poll::CallButton;
 
     use crate::message::memory_msg::MemoryData;
@@ -39,6 +40,7 @@ hardware
         pub obstruction: bool,
         pub stop_button: bool,
         pub motor_direction: OrderDirection,
+        pub next_stop: u8
     }
 
     impl ElevatorData {
@@ -47,7 +49,8 @@ hardware
                 current_floor: 0,
                 obstruction: false,
                 stop_button: false,
-                motor_direction: OrderDirection::Up
+                motor_direction: OrderDirection::Up,
+                next_stop: 0
             }
         }
     }
@@ -124,7 +127,7 @@ hardware
                 // Reset Queue
                 let mut order_queue: VecDeque<Order> = VecDeque::new();
                 
-                if let Ok(cmd) = recv.recv() {
+                if let Ok(cmd) = recv.try_recv() {
                     if let MessageContent::Memory(MemoryData{ data: ElevatorStatusCommand::SetCabRequests{elevator_id: _, orders}}) = cmd.data {
                         order_queue = orders;
                     }
@@ -155,15 +158,25 @@ hardware
                             elevator_command_execute(&elevator, HardwareData::SetCallButtonLight{floor: index, call: 2, status: floor.cab});
                         }
 
-                        //TODO ADD STOP and OBSTRUCTION FUNCTIONALITY
-                        {
-                            let mut elevator_data = current_elevator_state.lock().unwrap();
-                            if elevator_data.obstruction == true || elevator_data.stop_button == true {
-                                elevator_data.motor_direction = 
-                            }
-                        }
-
+                        // Find next stop
                     }
+                }
+
+                {
+                    let mut elevator_data = current_elevator_state.lock().unwrap();
+                    if elevator_data.obstruction == true || elevator_data.stop_button == true {
+                        elevator_data.motor_direction = OrderDirection::Stop;
+                    }
+                }
+
+                {
+                    let elevator_data = current_elevator_state.lock().unwrap();
+                    let direction: u8 = match elevator_data.motor_direction {
+                        OrderDirection::Down    => DIRN_DOWN,
+                        OrderDirection::Up      => DIRN_UP,
+                        OrderDirection::Stop    => DIRN_STOP,
+                    };
+                    elevator_command_execute(&elevator, HardwareData::SetMotorDirection(direction));
                 }
             }            
         });
