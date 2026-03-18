@@ -1,6 +1,7 @@
 pub mod
 hardware
 {
+    use std::sync::{Arc, Mutex};
     use std::collections::VecDeque;
     use std::sync::mpsc::{Receiver, Sender};
     use std::thread::{self};
@@ -33,9 +34,29 @@ hardware
         }
     }
 
+    struct ElevatorData {
+        pub current_floor: u8,
+        pub obstruction: bool,
+        pub stop_button: bool,
+        pub motor_direction: OrderDirection,
+    }
+
+    impl ElevatorData {
+        fn new() -> Self {
+            Self {
+                current_floor: 0,
+                obstruction: false,
+                stop_button: false,
+                motor_direction: OrderDirection::Up
+            }
+        }
+    }
+
     pub fn
     hardware_loop(send: Sender<Message>, recv: Receiver<Message>)
     {
+        let current_elevator: Arc<Mutex<ElevatorData>> = Arc::new(Mutex::new(ElevatorData::new()));
+
         let (call_button_tx, call_button_rx)    = cbc::unbounded::<elevio::poll::CallButton>(); 
         let (floor_sensor_tx, floor_sensor_rx)                  = cbc::unbounded::<u8>(); 
         let (stop_button_tx, stop_button_rx)                = cbc::unbounded::<bool>();
@@ -63,6 +84,7 @@ hardware
             thread::spawn(move || elevio::poll::obstruction(elevator_obstruction, obstruction_tx, POOL_DUR));
         }
 
+        let current_elevator_sens = current_elevator.clone();
         thread::spawn(move || 
         {
         loop
@@ -72,23 +94,36 @@ hardware
                     send.send(call_button_handler(o.unwrap())).unwrap();
                 },
                 recv(floor_sensor_rx) -> o => {
+                    {
+                        let mut floor_lock = current_elevator_sens.lock().unwrap();
+                        floor_lock.current_floor = o.unwrap();
+                    }
                     send.send(floor_sensor_handler(o.unwrap())).unwrap();
                 },
                 recv(stop_button_rx) -> o => {
+                    {
+                        let mut floor_lock = current_elevator_sens.lock().unwrap();
+                        floor_lock.stop_button = o.unwrap();
+                    }
                     send.send(stop_button_handler(o.unwrap())).unwrap();
                 },
                 recv(obstruction_rx) -> o => {
+                    {
+                        let mut floor_lock = current_elevator_sens.lock().unwrap();
+                        floor_lock.obstruction = o.unwrap();
+                    }
                     send.send(obstruction_handler(o.unwrap())).unwrap();
                 }
             }
         }});
 
+        let current_elevator_state = current_elevator.clone();
         thread::spawn(move || 
         {
             loop { 
                 // Reset Queue
                 let mut order_queue: VecDeque<Order> = VecDeque::new();
-
+                
                 if let Ok(cmd) = recv.recv() {
                     if let MessageContent::Memory(MemoryData{ data: ElevatorStatusCommand::SetCabRequests{elevator_id: _, orders}}) = cmd.data {
                         order_queue = orders;
@@ -111,14 +146,21 @@ hardware
                                         floor_requests[*order.get_floor() as usize].down = true;
                                     }
                                 }
-                                _ => ()
                             }
                         }
 
                         for (index, floor) in floor_requests.iter().enumerate().map(|(i, f)| (i as u8, f)) {
-                            elevator_command_execute(&elevator, HardwareData::SetCallButtonLight{floor: index, call: 1, status: floor.up});
-                            elevator_command_execute(&elevator, HardwareData::SetCallButtonLight{floor: index, call: 2, status: floor.down});
-                            elevator_command_execute(&elevator, HardwareData::SetCallButtonLight{floor: index, call: 3, status: floor.cab});
+                            elevator_command_execute(&elevator, HardwareData::SetCallButtonLight{floor: index, call: 0, status: floor.up});
+                            elevator_command_execute(&elevator, HardwareData::SetCallButtonLight{floor: index, call: 1, status: floor.down});
+                            elevator_command_execute(&elevator, HardwareData::SetCallButtonLight{floor: index, call: 2, status: floor.cab});
+                        }
+
+                        //TODO ADD STOP and OBSTRUCTION FUNCTIONALITY
+                        {
+                            let mut elevator_data = current_elevator_state.lock().unwrap();
+                            if elevator_data.obstruction == true || elevator_data.stop_button == true {
+                                elevator_data.motor_direction = 
+                            }
                         }
 
                     }
