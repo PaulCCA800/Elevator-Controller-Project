@@ -2,7 +2,8 @@ use std::convert::TryFrom;
 use serde::{Deserialize, Serialize};
 
 use crate::{message::{LOCAL_ID, hardware_msg::HardwareData, network_msg::NetworkData}};
-use crate::memory::elevator::{ElevatorStatusCommand, Obstruction};
+use crate::memory::elevator::{Obstruction};
+use crate::memory::world_view::ElevatorStatusCommand;
 use crate::memory::orders::{Order, OrderDirection, OrderType};
 
 fn get_obstruction(obs: bool) -> Obstruction
@@ -62,7 +63,6 @@ impl From<NetworkData> for MemoryData {
     fn from(data: NetworkData) -> Self {
         Self {
             data: ElevatorStatusCommand::SynchronizeWorldView {
-                elevator_id: data.machine_id,
                 world_view: data.data
             }
         }

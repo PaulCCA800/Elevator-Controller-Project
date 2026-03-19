@@ -31,6 +31,27 @@ pub struct Order {
     ack_barrier: Vec<u64>,
 }
 
+impl OrderType {
+    pub fn is_cab(call: u8) -> Self {
+        if call == 2 {
+            OrderType::Cab
+        } else {
+            OrderType::Hall
+        }
+    }
+}
+
+impl OrderDirection {
+    pub fn dir_from_call(call: u8) -> Self {
+        match call
+        {
+            2 => OrderDirection::Down,
+            1 => OrderDirection::Up,
+            _ => OrderDirection::Up
+        }
+    }
+}
+
 impl Order {
     pub fn new(floor: u8, order_type: OrderType, direction: OrderDirection) -> Self{
         Self{

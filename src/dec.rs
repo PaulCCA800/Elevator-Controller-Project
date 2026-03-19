@@ -3,8 +3,11 @@ use std::io::Write;
 use std::process::{Command, Stdio};
 use serde::{Serialize, Deserialize};
 
-use crate::memory::{Behaviour, DeadOrAlive, Elevator, ElevatorDirection, Order, OrderDirection, OrderStatus, OrderType, WorldView};
+//use crate::memory::{Behaviour, DeadOrAlive, Elevator, ElevatorDirection, Order, OrderDirection, OrderStatus, OrderType, WorldView};
 
+use crate::memory::orders::{Order, OrderDirection, OrderStatus, OrderType};
+use crate::memory::world_view::{WorldView};
+use crate::memory::elevator::{Behaviour, ElevatorDirection, Elevator};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
