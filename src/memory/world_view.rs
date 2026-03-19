@@ -447,6 +447,9 @@ impl WorldView {
     }
 
     pub fn edit_order_queue(&mut self, command: OrderQueueCommand) {
+
+        let my_id = self.get_id();
+
         match command {
             OrderQueueCommand::AddToOrderQueue {mut order}
             => {
@@ -463,8 +466,8 @@ impl WorldView {
             => match self.hall_order_queue.get_mut_hall_order(order_id){
                    Some(order) => {
                        order.set_order_status(status);
-                       if !order.get_ack_barrier().contains(&self.get_id()) {
-                           order.insert_into_ack_barrier(self.get_id());
+                       if !order.get_ack_barrier().contains(&my_id) {
+                           order.insert_into_ack_barrier(my_id);
                        }
                    },
                    None => {},
