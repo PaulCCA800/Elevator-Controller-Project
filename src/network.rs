@@ -1,9 +1,13 @@
 pub mod
 udp_server
 {
-    use std::{net::UdpSocket, net::SocketAddr};
+    use std::sync::{Arc, Mutex, mpsc::{Receiver, Sender}};
+    use std::thread;
+    use crate::misc::DELAY_DUR;
 
-    use crate::message::message::UdpMsg;
+    use crate::message::Message;
+
+    use std::{net::UdpSocket, net::SocketAddr};
 
     const DEFAULT_ADDR  : &str = "0.0.0.0:8080";
     const EMPTY_ADDR    : &str = "0.0.0.0:0";
@@ -14,7 +18,7 @@ udp_server
     {
         server      : UdpSocket,
         local_addr  : SocketAddr,
-        recv_queue  : Vec<UdpMsg>
+        recv_queue  : Vec<Message>
     }
 
     impl 
@@ -51,15 +55,13 @@ udp_server
         }
 
         pub fn
-        network_transmit(&self, mut message: UdpMsg)
+        network_transmit(&self, message: Message)
         {
-            let transmit_buffer = message.encode();
-
-            let a = self.server.send_to(&transmit_buffer, "255.255.255.255:8080");
-            match a {
-                Ok(_) => (),
-                Err(e) => println!("Error: {e}")
-            };
+            let transmit_buffer: Vec<u8> = bincode::serialize(&message).unwrap();
+            
+            if let Err(error) = self.server.send_to(&transmit_buffer, "255.255.255.255:8080"){
+                println!("Transmit Error: {error}");
+            }
         }
 
         pub fn
@@ -80,13 +82,9 @@ udp_server
                     {
                         println!("Recived packet from {}", recv_tup.1);
                     
-                        let msg = UdpMsg::decode(local_buf_vec, recv_tup.0);
-
-                        match msg
-                        {
-                            Some(data) => {self.recv_queue.push(data);},
-                            None => ()
-                        }         
+                        if let Ok(msg) = bincode::deserialize(&local_buf_vec){
+                            self.recv_queue.push(msg);
+                        }
                     }
                 },
                 Err(_) =>
@@ -95,9 +93,37 @@ udp_server
         }
 
         pub fn
-        get_message(&mut self) -> Option<UdpMsg>
+        get_message(&mut self) -> Option<Message>
         {      
             self.recv_queue.pop()
+        }
+
+        pub fn spawn_tx_thread(recv: Receiver<Message>, server: Arc<Mutex<Server>>) {
+            loop{
+                {
+                    if let Ok(server_lock) = server.lock(){
+                        if let Ok(channel_data) = recv.try_recv(){
+                            let network_data= channel_data.try_into_network().unwrap();
+                            server_lock.network_transmit(network_data);                        
+                        }
+                    }
+                }
+                thread::sleep(DELAY_DUR);
+            }
+        }
+
+        pub fn spawn_rx_thread(src: Sender<Message>, server: Arc<Mutex<Server>>) {
+            loop{
+                {
+                    if let Ok(mut server_lock) = server.lock(){
+                        server_lock.network_recieve();
+                        if let Some(rx_message) = server_lock.get_message(){
+                            src.send(rx_message).unwrap();
+                        }
+                    }
+                }
+                thread::sleep(DELAY_DUR);
+            }
         }
     }
 }
