@@ -2,8 +2,11 @@ use std::collections::{HashMap, VecDeque};
 use std::io::Write;
 use std::process::{Command, Stdio};
 use serde::{Serialize, Deserialize};
+use crossbeam_channel as cbc;
 
-use crate::mem::{Behaviour, DeadOrAlive, Elevator, ElevatorDirection, Order, OrderDirection, OrderStatus, OrderType, WorldView};
+use crate::memory::elevator::{Elevator, ElevatorDirection, DeadOrAlive, Behaviour};
+use crate::memory::orders::{Order, OrderDirection, OrderType, OrderStatus};
+use crate::memory::world_view::{self, WorldView};
 
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -73,11 +76,11 @@ fn assigner(input: &Input, exe_path: &String) -> anyhow::Result<Output> {
 }
 
 
-fn assigner_output_to_assigned_orders(orderMap: HashMap<String, Vec<[bool; 2]>>) -> HashMap<u64, VecDeque<Order>>{
+fn assigner_output_to_assigned_orders(orderMap: HashMap<String, Vec<[bool; 2]>>) -> HashMap<u16, VecDeque<Order>>{
 
-    let mut assignedOrdersByID: HashMap<u64, VecDeque<Order>> = HashMap::new(); 
+    let mut assignedOrdersByID: HashMap<u16, VecDeque<Order>> = HashMap::new(); 
     for (elevator, orders) in orderMap{
-        let id: u64 = match elevator.parse() {
+        let id: u16 = match elevator.parse() {
             Ok(elevatorID) => elevatorID,
             Err(e) => {print!("Parse failed {}. Returning empty hashmap", e);
                                       return HashMap::new();}
@@ -104,7 +107,7 @@ fn assigner_output_to_assigned_orders(orderMap: HashMap<String, Vec<[bool; 2]>>)
 }  
 
 
-fn hall_order_format_converter(order_queue: &HashMap<u64, Order>) -> [[bool; 2]; 4]{
+fn hall_order_format_converter(order_queue: &HashMap<u16, Order>) -> [[bool; 2]; 4]{
     let mut queue = [[false; 2]; 4];
     for order in order_queue.values(){
         let dir_idx = match order.get_direction() {
@@ -126,11 +129,11 @@ fn cab_order_format_converter(order_queue: &VecDeque<Order>) -> Vec<bool>{
 }
 
 
-pub fn assign_hall_orders(last_world_view: WorldView) -> HashMap<u64, VecDeque<Order>> {
+pub fn assign_hall_orders(last_world_view: WorldView) -> HashMap<u16, VecDeque<Order>> {
 
     let mut states: HashMap<String, ElevatorState> = HashMap::new();
 
-    let filtered_elevators: HashMap<u64, Elevator> 
+    let filtered_elevators: HashMap<u16, Elevator> 
     = last_world_view.get_elevator_statuses()
                      .iter()
                      .filter(|(_, elevator)| elevator.get_dead_or_alive() == &DeadOrAlive::Alive)
@@ -147,8 +150,8 @@ pub fn assign_hall_orders(last_world_view: WorldView) -> HashMap<u64, VecDeque<O
         states.insert(id_string, state);
     }
 
-    let filtered_hall_orders: HashMap<u64, Order> 
-    = last_world_view.get_order_queue()
+    let filtered_hall_orders: HashMap<u16, Order> 
+    = last_world_view.get_hall_order_queue().get_order_queue()
                      .iter()
                      .filter(|(_, order)| order.get_order_status() == &OrderStatus::Confirmed)
                      .map(|(id, order)| (*id, order.clone()))
@@ -167,4 +170,22 @@ pub fn assign_hall_orders(last_world_view: WorldView) -> HashMap<u64, VecDeque<O
 
     return assigner_output_to_assigned_orders(assignedHallOrders);
 
+}
+
+pub fn decision_thread(rx_decision: cbc::Receiver<WorldView>, tx_hall_orders: cbc::Sender<Vec<Order>>, my_elevator_id: u16) {
+
+    let mut assigned_hall_orders: HashMap<u16, VecDeque<Order>> = HashMap::new();
+
+    loop {
+        match rx_decision.recv(){
+            Ok(world_view) => {assigned_hall_orders = assign_hall_orders(world_view)},
+            Err(_) => println!("failed to receive on rx_decision for elevator {}", my_elevator_id),
+        } 
+        let my_filtered_hall_orders: Vec<Order> = assigned_hall_orders.get(&my_elevator_id)
+                                                                      .cloned()
+                                                                      .unwrap_or_else(VecDeque::new)
+                                                                      .into_iter()
+                                                                      .collect();
+        tx_hall_orders.send(my_filtered_hall_orders);
+    }
 }

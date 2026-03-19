@@ -1,6 +1,6 @@
 use::serde::{Serialize, Deserialize};
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::sync::mpsc::{Receiver};
+use crossbeam_channel as cbc;
 use std::time::{Duration, Instant};
 
 use crate::memory::elevator::{DeadOrAlive, Behaviour, Obstruction, ElevatorDirection, Elevator};
@@ -8,40 +8,46 @@ use crate::memory::hall_order_queue::HallOrderQueue;
 use crate::memory::orders::{OrderStatus, Order};
 use crate::misc::generate_id;
 
+pub enum MemoryCommand {
+    ElevatorStatus(ElevatorStatusCommand),
+    OrderQueue(OrderQueueCommand),
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub enum ElevatorStatusCommand {
-    SetDeadOrAlive {elevator_id: u64, dead_or_alive: DeadOrAlive},
-    SetBehaviour {elevator_id: u64, behavior: Behaviour},
-    SetObstruction {elevator_id: u64, obstruction: Obstruction},
-    SetFloor {elevator_id: u64, floor: u8},
-    SetDirection {elevator_id: u64, dir: ElevatorDirection},
-    SetCabRequests {elevator_id: u64, orders: VecDeque<Order>},
-    AddCabRequest {elevator_id: u64, order: Order},
-    RemoveCabRequest {elevator_id: u64},
+    SetDeadOrAlive {elevator_id: u16, dead_or_alive: DeadOrAlive},
+    SetBehaviour {elevator_id: u16, behavior: Behaviour},
+    SetObstruction {elevator_id: u16, obstruction: Obstruction},
+    SetFloor {elevator_id: u16, floor: u8},
+    SetDirection {elevator_id: u16, dir: ElevatorDirection},
+    SetCabRequests {elevator_id: u16, orders: VecDeque<Order>},
+    AddCabRequest {elevator_id: u16, order: Order},
+    RemoveCabRequest {elevator_id: u16},
+    SetCabOrderStatus {elevator_id: u16, order_id: u16, status: OrderStatus}, 
     SynchronizeWorldView {world_view: WorldView},
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum OrderQueueCommand {
     AddToOrderQueue {order: Order},
-    RemoveFromOrderQueue{order_id: u64},
-    SetOrderStatus{order_id: u64, status: OrderStatus},
-    SetAckBarrier{order_id: u64, barrier: Vec<u64>},
-    InsertAckBarrier{order_id: u64, elevator_id: u64},
+    RemoveFromOrderQueue{order_id: u16},
+    SetOrderStatus{order_id: u16, status: OrderStatus},
+    SetAckBarrier{order_id: u16, barrier: Vec<u16>},
+    InsertAckBarrier{order_id: u16, elevator_id: u16},
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct WorldView {
-    my_elevator_id: u64,
-    session_id: u64,
-    elevator_statuses: HashMap <u64, Elevator>,
+    my_elevator_id: u16,
+    session_id: u16,
+    elevator_statuses: HashMap <u16, Elevator>,
     hall_order_queue: HallOrderQueue,
-    write_counter: HashMap <u64, u64>,
-    recorded_session_ids: HashMap<u64, u64>,
+    write_counter: HashMap <u16, u16>,
+    recorded_session_ids: HashMap<u16, u16>,
 }
 
 impl WorldView {
-    pub fn new(my_elevator_id: u64, session_id: u64) -> Self{
+    pub fn new(my_elevator_id: u16, session_id: u16) -> Self{
         
         Self{
             my_elevator_id,
@@ -53,125 +59,139 @@ impl WorldView {
             }
     }
 
-    fn initialize_elevator_statuses(id: u64) -> HashMap<u64, Elevator>{
+    fn initialize_elevator_statuses(id: u16) -> HashMap<u16, Elevator>{
         let mut initial_elevator_statuses = HashMap::new();
         initial_elevator_statuses.insert(id, Elevator::new(id));
         return initial_elevator_statuses
     }
 
-    fn initialize_write_counter(id: u64) -> HashMap<u64, u64>{
+    fn initialize_write_counter(id: u16) -> HashMap<u16, u16>{
         let mut initial_write_counter = HashMap::new();
-        initial_write_counter.insert(id, 0 as u64);
+        initial_write_counter.insert(id, 0 as u16);
         return initial_write_counter
     }
 
-    fn initialize_recorded_session_ids(elevator_id: u64, session_id: u64) -> HashMap<u64, u64>{
-        let mut recorded_session_ids: HashMap<u64, u64> = HashMap::new();
+    fn initialize_recorded_session_ids(elevator_id: u16, session_id: u16) -> HashMap<u16, u16>{
+        let mut recorded_session_ids: HashMap<u16, u16> = HashMap::new();
         recorded_session_ids.insert(elevator_id, session_id);
         return recorded_session_ids;
     }
 
-    fn get_id(&self) -> u64{
+    fn get_id(&self) -> u16{
         return self.my_elevator_id
     }
 
-    fn get_session_id(&self) -> u64{
+    fn get_session_id(&self) -> u16{
         return self.session_id
     }
 
-    pub fn get_elevator_statuses(&self) -> &HashMap<u64, Elevator>{
+    pub fn get_elevator_statuses(&self) -> &HashMap<u16, Elevator>{
         return &self.elevator_statuses;
     }
 
-    fn get_recorded_session_ids(&self) -> &HashMap<u64, u64>{
+    pub fn get_hall_order_queue(&self) -> &HallOrderQueue{
+        return &self.hall_order_queue
+    }
+
+    fn get_recorded_session_ids(&self) -> &HashMap<u16, u16>{
         return &self.recorded_session_ids
     }
 
-    fn get_mut_recorded_session_ids(&mut self) -> &mut HashMap<u64, u64>{
+    fn get_mut_recorded_session_ids(&mut self) -> &mut HashMap<u16, u16>{
         return &mut self.recorded_session_ids
     }
 
-    pub fn get_elevator(&self, elevator_id: u64) -> &Elevator {
+    pub fn get_elevator(&self, elevator_id: u16) -> &Elevator {
         return self.elevator_statuses.get(&elevator_id)
         .expect(&format!("get error: no elevator found at {}.", elevator_id));
     }
 
-    pub fn get_mut_elevator(&mut self, elevator_id: u64) -> &mut Elevator {
+    pub fn get_mut_elevator(&mut self, elevator_id: u16) -> &mut Elevator {
         return self.elevator_statuses.get_mut(&elevator_id)
         .expect(&format!("get_mut error: no elevator found at {}.", elevator_id));
     }
 
-    pub fn set_elev_dead_or_alive(&mut self, elevator_id: u64, dead_or_alive: DeadOrAlive) {
+    pub fn set_elev_dead_or_alive(&mut self, elevator_id: u16, dead_or_alive: DeadOrAlive) {
         self.get_mut_elevator(elevator_id).set_dead_or_alive(dead_or_alive);
     }
 
-    pub fn set_elev_current_floor(&mut self, elevator_id: u64, floor: u8) {
+    pub fn set_elev_current_floor(&mut self, elevator_id: u16, floor: u8) {
         self.get_mut_elevator(elevator_id).set_floor(floor);
     }
 
-    pub fn set_elev_direction(&mut self, elevator_id: u64, direction: ElevatorDirection) {
+    pub fn set_elev_direction(&mut self, elevator_id: u16, direction: ElevatorDirection) {
         self.get_mut_elevator(elevator_id).set_direction(direction);
     }
 
-    pub fn get_elev_behaviour(&self, elevator_id: u64) -> &Behaviour{
+    pub fn get_elev_behaviour(&self, elevator_id: u16) -> &Behaviour{
         return self.get_elevator(elevator_id).get_behaviour();
     }
 
-    pub fn set_elev_behaviour(&mut self, elevator_id: u64, behaviour: Behaviour) {
+    pub fn set_elev_behaviour(&mut self, elevator_id: u16, behaviour: Behaviour) {
         self.get_mut_elevator(elevator_id).set_behavior(behaviour);
     }
 
-    pub fn get_elev_obstruction(&self, elevator_id: u64) -> &Obstruction{
+    pub fn get_elev_obstruction(&self, elevator_id: u16) -> &Obstruction{
         return self.get_elevator(elevator_id).get_obstruction();
     }
 
-    pub fn set_elev_obstruction(&mut self, elevator_id: u64, obstruction: Obstruction) {
+    pub fn set_elev_obstruction(&mut self, elevator_id: u16, obstruction: Obstruction) {
         self.get_mut_elevator(elevator_id).set_obstruction(obstruction);
     }
 
-    pub fn set_elev_cab_orders(&mut self, elevator_id: u64, orders: VecDeque<Order>) {
+    pub fn set_elev_cab_orders(&mut self, elevator_id: u16, orders: VecDeque<Order>) {
         self.get_mut_elevator(elevator_id).set_cab_requests(orders);
     }
 
-    pub fn add_elev_cab_order(&mut self, elevator_id: u64, order: Order) {
+    pub fn add_elev_cab_order(&mut self, elevator_id: u16, order: Order) {
         self.get_mut_elevator(elevator_id).add_cab_request(order);
     }
 
-    pub fn remove_elev_cab_order(&mut self, elevator_id: u64) {
+    pub fn remove_elev_cab_order(&mut self, elevator_id: u16) {
         self.get_mut_elevator(elevator_id).remove_cab_request();
     }
 
-    fn get_write_counter(&self) -> &HashMap<u64, u64>{
+    pub fn set_elev_cab_order_status(&mut self, elevator_id: u16, order_id: u16, status: OrderStatus){
+        if let Some(order) = self.get_mut_elevator(elevator_id)
+                                             .get_mut_cab_requests()
+                                             .iter_mut()
+                                             .find(|o| *o.get_order_id() == order_id)
+        {
+            order.set_order_status(status);
+        }
+    }
+
+    fn get_write_counter(&self) -> &HashMap<u16, u16>{
         return &self.write_counter
     }
 
-    fn get_elevator_write_counter(&self, elevator_id: u64) -> &u64{
+    fn get_elevator_write_counter(&self, elevator_id: u16) -> &u16{
         match self.get_write_counter().get(&elevator_id){
             Some(write_counter) => return write_counter,
             None => return &0
         }
     }
 
-    fn get_mut_write_counter(&mut self) -> &mut HashMap<u64, u64>{
+    fn get_mut_write_counter(&mut self) -> &mut HashMap<u16, u16>{
         return &mut self.write_counter
     }
 
-    fn set_write_counter(&mut self, elevator_id: u64, value: u64) {
+    fn set_write_counter(&mut self, elevator_id: u16, value: u16) {
         match self.get_mut_write_counter().get_mut(&elevator_id){
             Some(counter) => *counter = value,
             None => {},
         }
     }
  
-    pub fn increment_write_counter(&mut self, elevator_id: &u64){
+    pub fn increment_write_counter(&mut self, elevator_id: &u16){
         let counter = self.write_counter.entry(*elevator_id).or_insert(0);
         *counter = counter.wrapping_add(1);
     }
 
-    fn get_unknown_counter(&mut self, world_view: &WorldView, elevetor_id: u64){
+    fn get_unknown_counter(&mut self, world_view: &WorldView, elevetor_id: u16){
         
         if !self.get_write_counter().keys().any(|k| k == &elevetor_id){
-                let incoming_write_counter: &u64 = match world_view.get_write_counter().get(&elevetor_id){
+                let incoming_write_counter: &u16 = match world_view.get_write_counter().get(&elevetor_id){
                     Some(counter) => counter,
                     None => &0,
                 };
@@ -205,15 +225,15 @@ impl WorldView {
         my_cab_orders.retain(|o| !orders_to_remove.contains(o));    
     }
 
-    fn update_my_hall_order_queue(&mut self, elevator_id: u64, world_view: &WorldView, me_resurrected: bool, other_resurrected: bool){
+    fn update_my_hall_order_queue(&mut self, elevator_id: u16, world_view: &WorldView, me_resurrected: bool, other_resurrected: bool){
 
         if (self.is_counter_newer(&elevator_id, world_view, me_resurrected) == true) && !other_resurrected{
 
-            let incoming_hall_order_queue: &HashMap<u64, Order> = world_view.hall_order_queue.get_order_queue();
-            let my_id: u64 = self.get_id();
+            let incoming_hall_order_queue: &HashMap<u16, Order> = world_view.hall_order_queue.get_order_queue();
+            let my_id: u16 = self.get_id();
 
-            let my_hall_order_queue: &mut HashMap<u64, Order> = self.hall_order_queue.get_mut_hall_order_queue();
-            let incoming_hall_order_ids: Vec<&u64> = incoming_hall_order_queue.keys().collect();
+            let my_hall_order_queue: &mut HashMap<u16, Order> = self.hall_order_queue.get_mut_hall_order_queue();
+            let incoming_hall_order_ids: Vec<&u16> = incoming_hall_order_queue.keys().collect();
             for &id in incoming_hall_order_ids{
                 let mut order: Order = world_view.hall_order_queue.get_hall_order(id).clone(); 
                 if !my_hall_order_queue.keys().any(|k| *k == id){
@@ -234,7 +254,7 @@ impl WorldView {
         }
     }
 
-    fn update_cab_ack_barriers(&mut self, elevator_id: u64, world_view: &WorldView, me_resurrected: bool, other_resurrected: bool){
+    fn update_cab_ack_barriers(&mut self, elevator_id: u16, world_view: &WorldView, me_resurrected: bool, other_resurrected: bool){
 
         let my_id = self.get_id();
 
@@ -270,16 +290,16 @@ impl WorldView {
         }
     }
 
-    fn update_hall_ack_barriers(&mut self, elevator_id: u64, world_view: &WorldView, me_resurrected: bool, other_resurrected: bool){
+    fn update_hall_ack_barriers(&mut self, elevator_id: u16, world_view: &WorldView, me_resurrected: bool, other_resurrected: bool){
 
         if (self.is_counter_newer(&elevator_id, world_view, me_resurrected) == true) && !other_resurrected{
 
-            let incoming_hall_order_queue: &HashMap<u64, Order> = world_view.hall_order_queue.get_order_queue();
+            let incoming_hall_order_queue: &HashMap<u16, Order> = world_view.hall_order_queue.get_order_queue();
 
             for order in incoming_hall_order_queue.values(){ 
 
-                let order_id: u64 = order.get_order_id().clone();
-                let elevator_ids_in_other_barrier: Vec<u64> = order.get_ack_barrier().iter().cloned().collect();
+                let order_id: u16 = order.get_order_id().clone();
+                let elevator_ids_in_other_barrier: Vec<u16> = order.get_ack_barrier().iter().cloned().collect();
 
                 match self.hall_order_queue.get_mut_hall_order(order_id){
                     Some(my_order) 
@@ -293,21 +313,21 @@ impl WorldView {
         }
     }
 
-    fn is_counter_newer(&mut self, elevator_id: &u64, world_view: &WorldView, me_resurrected: bool) -> bool{
+    fn is_counter_newer(&mut self, elevator_id: &u16, world_view: &WorldView, me_resurrected: bool) -> bool{
 
-        let incoming_write_counter: &u64 = match world_view.get_write_counter().get(&elevator_id){
+        let incoming_write_counter: &u16 = match world_view.get_write_counter().get(elevator_id){
                 Some(counter) => counter,
                 None => return false,
             };
 
-        let my_last_recorded_counter: &mut u64 = self.get_mut_write_counter().entry(*elevator_id).or_insert(0); 
+        let my_last_recorded_counter: &mut u16 = self.get_mut_write_counter().entry(*elevator_id).or_insert(0); 
         let version_control = incoming_write_counter.wrapping_sub(*my_last_recorded_counter);
         
         let mut is_newer: bool = false;
         match me_resurrected{
-            false => {if version_control != 0 && version_control < (1 << 63){is_newer = true}}
+            false => {if version_control != 0 && version_control < (1 << 15){is_newer = true}}
 
-            true => {if version_control < (1 << 63){is_newer = true}}  
+            true => {if version_control < (1 << 15){is_newer = true}}  
         }  
 
         return is_newer
@@ -315,14 +335,14 @@ impl WorldView {
 
     fn synchronize_world_view(&mut self, world_view: WorldView) {
 
-        let my_id: u64 = self.get_id();
-        let my_session_id:u64 = self.get_session_id();
+        let my_id: u16 = self.get_id();
+        let my_session_id:u16 = self.get_session_id();
 
-        let other_id: u64 = world_view.get_id();
-        let other_session_id: u64 = world_view.get_session_id();
+        let other_id: u16 = world_view.get_id();
+        let other_session_id: u16 = world_view.get_session_id();
 
-        let last_recorded_session_ids: &mut HashMap<u64, u64> = self.get_mut_recorded_session_ids();
-        let other_last_recorded_session_ids: &HashMap<u64, u64> = world_view.get_recorded_session_ids();
+        let last_recorded_session_ids: &mut HashMap<u16, u16> = self.get_mut_recorded_session_ids();
+        let other_last_recorded_session_ids: &HashMap<u16, u16> = world_view.get_recorded_session_ids();
 
         let mut other_resurrected: bool = false;
         let mut me_resurrected: bool = false;
@@ -412,6 +432,9 @@ impl WorldView {
             ElevatorStatusCommand::RemoveCabRequest {elevator_id}
             => self.remove_elev_cab_order(elevator_id),
 
+            ElevatorStatusCommand::SetCabOrderStatus {elevator_id, order_id, status}
+            => self.set_elev_cab_order_status(elevator_id, order_id, status),
+
             ElevatorStatusCommand::SynchronizeWorldView {world_view}
             => self.synchronize_world_view(world_view),
 
@@ -444,58 +467,92 @@ impl WorldView {
                    None => {},
             },
         }
-    }
+    }    
+}
 
-    /*function beneath is to be called using:
-    let handle = std::thread::spawn(move || {memory_thread(memory_rx);});*/
-    pub fn memory_thread(rx_elevator: Receiver<ElevatorStatusCommand>, rx_hall_orders: Receiver<OrderQueueCommand>) {
+pub fn memory_thread(
+    my_elevator_id: u16,
+    my_session_id: u16,
+    rx_memory: cbc::Receiver<MemoryCommand>,
+    rx_network: cbc::Receiver<WorldView>,
+    tx_elevator_state: cbc::Sender<Elevator>,
+    tx_decision: cbc::Sender<WorldView>,
+    tx_network_tx: cbc::Sender<WorldView>,) {
 
-        let my_elevator_id: u64 = generate_id();
-        let my_session_id: u64 = rand::random(); 
-        let mut my_local_world_view = WorldView::new(my_elevator_id, my_session_id);
+    let mut my_local_world_view = WorldView::new(my_elevator_id, my_session_id);
 
-        let mut last_seen_timers: HashMap<u64, Instant> = HashMap::new();
-        let timeout = Duration::from_secs(3);
-        last_seen_timers.insert(my_elevator_id, Instant::now());
+    let mut last_seen_timers: HashMap<u16, Instant> = HashMap::new();
+    let timeout = Duration::from_secs(3);
+    last_seen_timers.insert(my_elevator_id, Instant::now());
 
-        loop {
-            match rx_elevator.recv_timeout(Duration::from_millis(50)) {
-                Ok(command) => {
-                    let sender_id = match &command {
-                        ElevatorStatusCommand::SynchronizeWorldView{world_view} => Some(world_view.get_id()),
-                        _ => None,
-                    };
+    let ticker = cbc::tick(Duration::from_millis(50));
 
-                    my_local_world_view.edit_elevator_status(command);
+    loop {
+        cbc::select! {
+            recv(rx_network) -> message => {
+                match message {
+                    Ok(world_view) => {
+                        let sender_id = world_view.get_id();
 
-                    if let Some(sender_id) = sender_id {
+                        my_local_world_view.edit_elevator_status(
+                            ElevatorStatusCommand::SynchronizeWorldView {world_view}
+                        );
 
                         last_seen_timers.insert(sender_id, Instant::now());
 
-                        my_local_world_view.get_mut_elevator(sender_id)
-                                           .set_dead_or_alive(DeadOrAlive::Alive);
+                        my_local_world_view
+                            .get_mut_elevator(sender_id)
+                            .set_dead_or_alive(DeadOrAlive::Alive);
                     }
-                }
-
-                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                    println!("elevator {} received no broadcast in the last 50 ms", my_elevator_id);
-                }
-
-                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
-                    break;
+                    Err(_) => {
+                        print!("failed to receive on rx_network for elevator {}", my_elevator_id);
+                    }
                 }
             }
 
-            for (id, last_seen) in &last_seen_timers {
-                if *id == my_elevator_id {
-                    continue;
+            recv(rx_memory) -> message => {
+                match message {
+                    Ok(command) => {
+                        match command {
+                            MemoryCommand::ElevatorStatus(cmd) => {
+                                my_local_world_view.edit_elevator_status(cmd);
+                            }
+                            MemoryCommand::OrderQueue(cmd) => {
+                                my_local_world_view.edit_order_queue(cmd);
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        print!("failed to receive on rx_memory for elevator {}", my_elevator_id);
+                    }
                 }
-                if last_seen.elapsed() > timeout {
+            }
+
+            recv(ticker) -> _ => {
+                let mut dead_ids = Vec::new();
+
+                for (id, last_seen) in &last_seen_timers {
+                    if *id != my_elevator_id && last_seen.elapsed() > timeout {
+                        dead_ids.push(*id);
+                    }
+                }
+
+                for id in dead_ids {
                     my_local_world_view
-                        .get_mut_elevator(*id)
+                        .get_mut_elevator(id)
                         .set_dead_or_alive(DeadOrAlive::Dead);
                 }
-            }   
+            }
         }
+
+        tx_elevator_state
+            .send(my_local_world_view.get_elevator(my_elevator_id).clone())
+            .unwrap();
+
+        tx_decision
+            .send(my_local_world_view.clone());
+
+        tx_network_tx
+            .send(my_local_world_view.clone());
     }
 }

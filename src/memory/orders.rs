@@ -22,12 +22,12 @@ pub enum OrderStatus {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct Order {
-    order_id: u64,
+    order_id: u16,
     floor: u8,
     order_type: OrderType,
     direction: OrderDirection,
     order_status: OrderStatus,
-    ack_barrier: Vec<u64>,
+    ack_barrier: Vec<u16>,
 }
 
 impl Order {
@@ -42,11 +42,11 @@ impl Order {
         }
     }
 
-    fn generate_order_ID() -> u64 {
+    fn generate_order_ID() -> u16 {
         return rand::random();
     }
 
-    pub fn get_order_id(&self) -> &u64 {
+    pub fn get_order_id(&self) -> &u16 {
         return &self.order_id
     }
 
@@ -70,19 +70,19 @@ impl Order {
         self.order_status = status;
     }
 
-    pub fn get_ack_barrier(&self) -> &Vec<u64>{
+    pub fn get_ack_barrier(&self) -> &Vec<u16>{
         return &self.ack_barrier
     }
 
-    pub fn get_mut_ack_barrier(&mut self) -> &mut Vec<u64>{
+    pub fn get_mut_ack_barrier(&mut self) -> &mut Vec<u16>{
         return &mut self.ack_barrier
     }
 
-    pub fn set_ack_barrier(&mut self, barrier: Vec<u64>) {
+    pub fn set_ack_barrier(&mut self, barrier: Vec<u16>) {
         self.ack_barrier = barrier;
     }
 
-    pub fn insert_into_ack_barrier(&mut self, elevator_id: u64) {
+    pub fn insert_into_ack_barrier(&mut self, elevator_id: u16) {
         self.ack_barrier.push(elevator_id);
     }
 }

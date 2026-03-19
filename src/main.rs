@@ -1,118 +1,95 @@
-use std::collections::HashMap;
-use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::{Mutex, Arc};
-use std::time;
-use std::thread::{self, JoinHandle};
+use crossbeam_channel as cbc;
+use std::thread;
 
-pub mod udpserver;
-pub mod message;
-mod mem;
-mod misc;
-mod dec;
+mod decision;
 mod memory;
+mod misc;
+mod udpnet;
+mod elevator_driver;
 
-use crate::mem::{Matrix, MatrixCmd, Elevator};
-use crate::message::message::UdpMsg;
-use crate::message::message::InternalMsg
 use crate::misc::generate_id;
-use crate::udpserver::udp_server::Server;
+use crate::elevator_driver::hardware_execution::{hardware_output_thread, spawn_hardware_input_threads};
+use crate::elevator_driver::elev::ElevatorHardware;
+use crate::memory::elevator::Elevator;
+use crate::memory::orders::{Order};
+use crate::memory::world_view::{WorldView, MemoryCommand, memory_thread};
+use crate::decision::decision_thread;
+use crate::udpnet::bcast::{tx, rx};
 
 fn main() {
+    let my_elevator_id: u16 = generate_id();
+    let my_session_id: u16 = rand::random();
 
-    let id: u64 = generate_id();
+    let elevator_hw = ElevatorHardware::init("localhost:15657", 4).unwrap();
 
-    let states: HashMap<u64, mem::Elevator> = HashMap::new();
-    let mut state_matrix: mem::Matrix =  Matrix::new(states);
+    let (tx_memory, rx_memory) = cbc::unbounded::<MemoryCommand>();
+    let (tx_network_to_memory, rx_network_to_memory) = cbc::unbounded::<WorldView>();
 
-    let mut elevator_threads: Vec<JoinHandle<()>> = vec![];
+    let (tx_elevator_state, rx_elevator_state) = cbc::unbounded::<Elevator>();
+    let (tx_decision, rx_decision) = cbc::unbounded::<WorldView>();
+    let (tx_hall_orders, rx_hall_orders) = cbc::unbounded::<Vec<Order>>();
 
-    let udp_server: Arc<Mutex<Server>> = Arc::new(Mutex::new(Server::spawn()));
+    let (tx_network_tx, rx_network_tx) = cbc::unbounded::<WorldView>();
 
-    let udp_server_tx = udp_server.clone();
-    let udp_server_rx = udp_server.clone();
+    spawn_hardware_input_threads(elevator_hw.clone(), tx_memory.clone(), my_elevator_id);    
 
-    let (net_to_mem_tx, mem_from_net_rx): 
-    (Sender<UdpMsg>, Receiver<UdpMsg>) = mpsc::channel();
-
-    let (mem_to_net_tx, net_from_mem_rx): 
-    (Sender<UdpMsg>, Receiver<UdpMsg>) = mpsc::channel();
-
-    let (hw_to_mem_tx, mem_from_hw_rx): 
-    (Sender<MatrixCmd>, Receiver<MatrixCmd>) = mpsc::channel();
-
-    let (mem_to_hw_tx, hw_from_mem_rx): 
-    (Sender<Elevator>, Receiver<Elevator>) = mpsc::channel();
-    
-    // Network Tx Thread
-    elevator_threads.push(thread::spawn(move ||
     {
-        loop
-        {
-            {
-                let udp_lock = udp_server_tx.lock().unwrap();
-
-                match mem_from_net_rx.try_recv()
-                {
-                    Ok(i) => 
-                    {
-                        udp_lock.network_transmit(i);
-                    },
-                    Err(_) => 
-                    {
-                        ()
-                    }
-                }
-            }
-            thread::sleep(time::Duration::from_millis(10));
-        }
-    }));
-
-    // Network Rx Thread
-    elevator_threads.push(thread::spawn(move ||
-    {
-        loop 
-        {
-            {
-                let mut udp_lock = udp_server_rx.lock().unwrap();
-
-                udp_lock.network_recieve();
-
-                match udp_lock.get_message()
-                {
-                    Some(i) => 
-                    {
-                        net_to_mem_tx.send(i).unwrap();
-                    },
-                    None =>
-                    {
-                        ()
-                    }
-                }
-
-            }    
-            thread::sleep(time::Duration::from_millis(10));
-        }
-    }));
-
-    // Memory Thread
-    elevator_threads.push(thread::spawn(move || {
-        loop{  
-            while let Ok(c) = mem_from_hw_rx.try_recv() {
-                state_matrix.edit_matrix(c);
-            }
-
-            let this_elevator: Elevator = state_matrix.get(id).clone();
-            match mem_to_hw_tx.send(this_elevator){
-                Ok(()) => println!("Successful transmit from memory to hardware, elevator: {}", id),
-                Err(_) => println!("Failed to transmit from memory to hardware, elevator: {}", id)
-            }
-
-            thread::sleep(time::Duration::from_millis(500));
-        }
-    }));
-
-    for t in elevator_threads
-    {
-        t.join().unwrap();
+        let tx = tx_network_to_memory.clone();
+        thread::spawn(move || {
+            rx(udp_port, tx).unwrap();
+        });
     }
+
+    {
+        thread::spawn(move || {
+            tx(udp_port, rx_network_tx).unwrap();
+        });
+    }
+
+     {
+        let tx_elevator_state = tx_elevator_state.clone();
+        let tx_decision = tx_decision.clone();
+        let tx_network_tx = tx_network_tx.clone();
+        thread::spawn(move || {
+            memory_thread(
+                my_elevator_id,
+                my_session_id,
+                rx_memory,
+                rx_network_to_memory,
+                tx_elevator_state,
+                tx_decision,
+                tx_network_tx,
+            );
+        });
+    }
+
+
+    {
+        let tx_hall_orders_thread = tx_hall_orders.clone();
+        thread::spawn(move || {
+            decision_thread(
+                rx_decision,
+                tx_hall_orders_thread,
+                my_elevator_id,
+            );
+        });
+    }
+
+    {
+        let tx_memory_thread = tx_memory.clone();
+        thread::spawn(move || {
+            hardware_output_thread(
+                elevator_hw,
+                rx_elevator_state,
+                rx_hall_orders,
+                tx_memory_thread,
+                my_elevator_id,
+            );
+        });
+    }
+
+    loop {
+        thread::park();
+    }
+
 }

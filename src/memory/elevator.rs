@@ -17,7 +17,7 @@ pub enum Behaviour {
     DoorOpen,
 }
 
-#[derive(Serialize, Deserialize, Copy, Clone)]
+#[derive(Serialize, Deserialize, Copy, Clone, Eq, PartialEq)]
 pub enum Obstruction {
     Obstructed,
     Clear,
@@ -34,8 +34,8 @@ pub enum ElevatorDirection {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Elevator {
     dead_or_alive: DeadOrAlive,
-    elevator_id: u64,
-    session_id: u64,
+    elevator_id: u16,
+    session_id: u16,
     behaviour: Behaviour,
     obstruction: Obstruction,
     floor: u8,
@@ -44,7 +44,7 @@ pub struct Elevator {
 }
 
 impl Elevator{
-    pub fn new(elevator_id: u64) -> Self{
+    pub fn new(elevator_id: u16) -> Self{
         Self{
             dead_or_alive: DeadOrAlive::Alive,
             elevator_id,
@@ -61,7 +61,7 @@ impl Elevator{
         return VecDeque::new();
     }
 
-    fn generate_session_id() -> u64 {
+    fn generate_session_id() -> u16 {
         return rand::random();
     }
 
@@ -73,11 +73,11 @@ impl Elevator{
         self.dead_or_alive = status
     }
 
-    pub fn get_elevator_id(&self) -> &u64{
+    pub fn get_elevator_id(&self) -> &u16{
         return &self.elevator_id
     }
 
-    pub fn get_session_id(&self) -> &u64{
+    pub fn get_session_id(&self) -> &u16{
         return &self.session_id
     }
 
