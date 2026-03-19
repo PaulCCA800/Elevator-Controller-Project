@@ -1,4 +1,4 @@
-use crate::memory::world_view::{WorldView};
+use crate::memory::world_view::WorldView;
 use crate::udpnet::bcast::{tx, rx};
 
 use crossbeam_channel as cbc;
@@ -11,7 +11,6 @@ pub fn network_tx_thread(
         eprintln!("network_tx_thread failed: {}", e);
     }
 }
-
 
 pub fn network_rx_thread(
     port: u16,

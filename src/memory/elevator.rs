@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use serde::{Serialize, Deserialize};
 
-use crate::memory::orders::{Order};
+use crate::memory::orders::Order;
 
 #[derive(Serialize, Deserialize, Copy,Clone,Eq, PartialEq, Debug)]
 pub enum DeadOrAlive {
@@ -23,7 +23,7 @@ pub enum Obstruction {
     Clear,
 }
 
-#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum ElevatorDirection {
     Up,

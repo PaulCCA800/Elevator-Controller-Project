@@ -12,8 +12,17 @@ mod sock;
 pub fn tx<T: serde::Serialize>(port: u16, ch: cbc::Receiver<T>) -> std::io::Result<()> {
     let (s, addr) = sock::new_tx(port)?;
     loop {
-        let data = ch.recv().unwrap();
-        let serialized = serde_json::to_string(&data).unwrap();
+        let data = match ch.recv() {
+            Ok(data) => data,
+            Err(_) => continue,
+        };
+        let serialized = match serde_json::to_string(&data) {
+            Ok(serialized) => serialized,
+            Err(e) => {
+                warn!("Unable to serialize packet, {}", e);
+                continue;
+            }
+        };
         if let Err(e) = s.send_to(serialized.as_bytes(), &addr) {
             warn!("Unable to send packet, {}", e);
         }
@@ -23,11 +32,15 @@ pub fn tx<T: serde::Serialize>(port: u16, ch: cbc::Receiver<T>) -> std::io::Resu
 pub fn rx<T: serde::de::DeserializeOwned>(port: u16, ch: cbc::Sender<T>) -> std::io::Result<()> {
     let s = sock::new_rx(port)?;
 
-    let mut buf = [0; 1024];
+    let mut buf = [0; 4096];
 
     loop {
         match parse_packet(&s, &mut buf) {
-            Ok(d) => ch.send(d).unwrap(),
+            Ok(d) => {
+                if ch.send(d).is_err() {
+                    warn!("Unable to forward received packet to channel");
+                }
+            }
             Err(e) => warn!("Received bad package got error: {}", e),
         }
     }
@@ -35,7 +48,7 @@ pub fn rx<T: serde::de::DeserializeOwned>(port: u16, ch: cbc::Sender<T>) -> std:
 
 fn parse_packet<'a, T: Deserialize<'a>>(
     s: &'_ Socket,
-    buf: &'a mut [u8; 1024],
+    buf: &'a mut [u8; 4096],
 ) -> Result<T, Box<dyn error::Error>> {
     let n = s.recv(buf)?;
     let msg = str::from_utf8(&buf[..n])?;

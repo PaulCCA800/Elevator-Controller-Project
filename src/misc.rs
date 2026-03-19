@@ -10,6 +10,5 @@ pub fn generate_id () -> u16 {
     let mut hasher = DefaultHasher::new();
     id.hash(&mut hasher);
     let hashed = hasher.finish();
-    return (hashed ^ (hashed >> 16) ^(hashed >> 32) ^(hashed >> 48)) as u16
+    return (hashed ^ (hashed >> 16) ^ (hashed >> 32) ^ (hashed >> 48)) as u16
 }
-

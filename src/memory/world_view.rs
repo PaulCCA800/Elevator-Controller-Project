@@ -1,4 +1,4 @@
-use::serde::{Serialize, Deserialize};
+use serde::{Serialize, Deserialize};
 use std::collections::{HashMap, HashSet, VecDeque};
 use crossbeam_channel as cbc;
 use std::time::{Duration, Instant};
@@ -6,7 +6,6 @@ use std::time::{Duration, Instant};
 use crate::memory::elevator::{DeadOrAlive, Behaviour, Obstruction, ElevatorDirection, Elevator};
 use crate::memory::hall_order_queue::HallOrderQueue;
 use crate::memory::orders::{OrderStatus, Order};
-use crate::misc::generate_id;
 
 pub enum MemoryCommand {
     ElevatorStatus(ElevatorStatusCommand),
@@ -77,7 +76,7 @@ impl WorldView {
         return recorded_session_ids;
     }
 
-    fn get_id(&self) -> u16{
+    pub fn get_id(&self) -> u16{
         return self.my_elevator_id
     }
 
@@ -143,7 +142,10 @@ impl WorldView {
         self.get_mut_elevator(elevator_id).set_cab_requests(orders);
     }
 
-    pub fn add_elev_cab_order(&mut self, elevator_id: u16, order: Order) {
+    pub fn add_elev_cab_order(&mut self, elevator_id: u16, mut order: Order) {
+        if !order.get_ack_barrier().contains(&self.get_id()) {
+            order.insert_into_ack_barrier(self.get_id());
+        }
         self.get_mut_elevator(elevator_id).add_cab_request(order);
     }
 
@@ -152,12 +154,16 @@ impl WorldView {
     }
 
     pub fn set_elev_cab_order_status(&mut self, elevator_id: u16, order_id: u16, status: OrderStatus){
+        let my_id = self.get_id();
         if let Some(order) = self.get_mut_elevator(elevator_id)
                                              .get_mut_cab_requests()
                                              .iter_mut()
                                              .find(|o| *o.get_order_id() == order_id)
         {
             order.set_order_status(status);
+            if !order.get_ack_barrier().contains(&my_id) {
+                order.insert_into_ack_barrier(my_id);
+            }
         }
     }
 
@@ -165,10 +171,10 @@ impl WorldView {
         return &self.write_counter
     }
 
-    fn get_elevator_write_counter(&self, elevator_id: u16) -> &u16{
+    fn get_elevator_write_counter(&self, elevator_id: u16) -> u16{
         match self.get_write_counter().get(&elevator_id){
-            Some(write_counter) => return write_counter,
-            None => return &0
+            Some(write_counter) => return *write_counter,
+            None => return 0
         }
     }
 
@@ -177,10 +183,7 @@ impl WorldView {
     }
 
     fn set_write_counter(&mut self, elevator_id: u16, value: u16) {
-        match self.get_mut_write_counter().get_mut(&elevator_id){
-            Some(counter) => *counter = value,
-            None => {},
-        }
+        self.get_mut_write_counter().insert(elevator_id, value);
     }
  
     pub fn increment_write_counter(&mut self, elevator_id: &u16){
@@ -191,11 +194,11 @@ impl WorldView {
     fn get_unknown_counter(&mut self, world_view: &WorldView, elevetor_id: u16){
         
         if !self.get_write_counter().keys().any(|k| k == &elevetor_id){
-                let incoming_write_counter: &u16 = match world_view.get_write_counter().get(&elevetor_id){
-                    Some(counter) => counter,
-                    None => &0,
+                let incoming_write_counter: u16 = match world_view.get_write_counter().get(&elevetor_id){
+                    Some(counter) => *counter,
+                    None => 0,
                 };
-            self.get_mut_write_counter().insert(elevetor_id, *incoming_write_counter);
+            self.get_mut_write_counter().insert(elevetor_id, incoming_write_counter);
         }
     }
 
@@ -204,24 +207,24 @@ impl WorldView {
         let my_id = self.get_id();
 
         let my_cab_orders = self.get_mut_elevator(my_id).get_mut_cab_requests();
-            for order in my_cab_orders.iter_mut(){
-        
-                let unique_elevator_ids_count = order.get_ack_barrier().iter().collect::<HashSet<_>>().len();
+        for order in my_cab_orders.iter_mut(){
+    
+            let unique_elevator_ids_count = order.get_ack_barrier().iter().collect::<HashSet<_>>().len();
 
-                if order.get_order_status() == &OrderStatus::Unconfirmed && unique_elevator_ids_count == num_elevators as usize{
-                    order.set_order_status(OrderStatus::Confirmed);
-                    order.get_mut_ack_barrier().clear();
-                }
-
-                else if order.get_order_status() == &OrderStatus::Completed && unique_elevator_ids_count == num_elevators as usize{
-                    order.set_order_status(OrderStatus::ReadyForDeletion);
-                    order.get_mut_ack_barrier().clear();
-                }
-
-                else if order.get_order_status() == &OrderStatus::ReadyForDeletion && unique_elevator_ids_count == num_elevators as usize{
-                    orders_to_remove.push(order.clone());
-                }
+            if order.get_order_status() == &OrderStatus::Unconfirmed && unique_elevator_ids_count == num_elevators as usize{
+                order.set_order_status(OrderStatus::Confirmed);
+                order.get_mut_ack_barrier().clear();
             }
+
+            else if order.get_order_status() == &OrderStatus::Completed && unique_elevator_ids_count == num_elevators as usize{
+                order.set_order_status(OrderStatus::ReadyForDeletion);
+                order.get_mut_ack_barrier().clear();
+            }
+
+            else if order.get_order_status() == &OrderStatus::ReadyForDeletion && unique_elevator_ids_count == num_elevators as usize{
+                orders_to_remove.push(order.clone());
+            }
+        }
         my_cab_orders.retain(|o| !orders_to_remove.contains(o));    
     }
 
@@ -249,7 +252,7 @@ impl WorldView {
         let incoming_write_counters = world_view.get_write_counter();
         for elevator_id in incoming_write_counters.keys(){
             if (self.is_counter_newer(elevator_id, world_view, me_resurrected) == true) && !other_resurrected{
-                self.set_write_counter(*elevator_id, *world_view.get_elevator_write_counter(*elevator_id));
+                self.set_write_counter(*elevator_id, world_view.get_elevator_write_counter(*elevator_id));
             }
         }
     }
@@ -306,7 +309,6 @@ impl WorldView {
                     => {for id in elevator_ids_in_other_barrier{
                             if !my_order.get_ack_barrier().contains(&id){my_order.insert_into_ack_barrier(id);}}},
                     None 
-                    //do nothing
                     => {},
                 }
             }
@@ -328,7 +330,7 @@ impl WorldView {
             false => {if version_control != 0 && version_control < (1 << 15){is_newer = true}}
 
             true => {if version_control < (1 << 15){is_newer = true}}  
-        }  
+        }
 
         return is_newer
     }
@@ -349,7 +351,7 @@ impl WorldView {
 
         if !last_recorded_session_ids.keys().any(|k| *k == other_id){
             last_recorded_session_ids.insert(other_id, other_session_id);
-        } 
+        }
 
         if last_recorded_session_ids.get(&other_id).expect("critical error synchronizing session ids.") != &other_session_id{
             last_recorded_session_ids.insert(other_id, other_session_id);
@@ -371,12 +373,12 @@ impl WorldView {
                     self.elevator_statuses.insert(*id, world_view.get_elevator(*id).clone());
                 }
 
-                let my_stored_elevator: &mut Elevator = self.get_mut_elevator(id.clone()); //what if not yet stored?
-                let other_stored_elevator: &Elevator = world_view.get_elevator(id.clone());
+                let my_stored_elevator: &mut Elevator = self.get_mut_elevator(*id);
+                let other_stored_elevator: &Elevator = world_view.get_elevator(*id);
 
-                my_stored_elevator.set_behavior(*other_stored_elevator.get_behaviour()); 
-                my_stored_elevator.set_obstruction(*other_stored_elevator.get_obstruction()); 
-                my_stored_elevator.set_floor(*other_stored_elevator.get_floor()); 
+                my_stored_elevator.set_behavior(*other_stored_elevator.get_behaviour());
+                my_stored_elevator.set_obstruction(*other_stored_elevator.get_obstruction());
+                my_stored_elevator.set_floor(*other_stored_elevator.get_floor());
                 my_stored_elevator.set_direction(*other_stored_elevator.get_direction());
                 my_stored_elevator.set_cab_requests(other_stored_elevator.get_cab_requests().clone());
                 my_stored_elevator.set_dead_or_alive(*other_stored_elevator.get_dead_or_alive());
@@ -384,46 +386,49 @@ impl WorldView {
             }
         }
 
-        let mut elevators_alive_count: u8 = 1;
+        self.update_my_hall_order_queue(other_id, &world_view, me_resurrected, other_resurrected);
+
+        self.update_hall_ack_barriers(other_id, &world_view, me_resurrected, other_resurrected);
+
+        self.update_my_write_counters(&world_view, me_resurrected, other_resurrected);
+
+        self.increment_write_counter(&my_id);
+    }
+
+    fn alive_elevators_count(&self) -> u8 {
+        let mut elevators_alive_count: u8 = 0;
         for elevator in self.get_elevator_statuses().values(){
             if elevator.get_dead_or_alive() == &DeadOrAlive::Alive{
                 elevators_alive_count += 1;
             }
         }
+        return elevators_alive_count.max(1)
+    }
 
-        self.update_my_hall_order_queue(other_id, &world_view, me_resurrected, other_resurrected);
-
-        self.update_hall_ack_barriers(other_id, &world_view, me_resurrected, other_resurrected);
-        
+    pub fn maintain_order_statuses(&mut self) {
+        let elevators_alive_count = self.alive_elevators_count();
         self.hall_order_queue.hall_order_status_manager(elevators_alive_count);
         self.cab_order_status_manager(elevators_alive_count);
-
-        self.update_my_write_counters(&world_view, me_resurrected, other_resurrected);
-
-        self.increment_write_counter(&my_id);
-    }      
-    
-
-    //editing functions 
+    }
 
     pub fn edit_elevator_status(&mut self, command: ElevatorStatusCommand) {
-        match command { 
+        match command {
             ElevatorStatusCommand::SetDeadOrAlive {elevator_id, dead_or_alive}
             => self.set_elev_dead_or_alive(elevator_id, dead_or_alive),
 
-            ElevatorStatusCommand::SetFloor {elevator_id, floor} 
+            ElevatorStatusCommand::SetFloor {elevator_id, floor}
             => self.set_elev_current_floor(elevator_id, floor),
 
-            ElevatorStatusCommand::SetDirection {elevator_id, dir} 
+            ElevatorStatusCommand::SetDirection {elevator_id, dir}
             => self.set_elev_direction(elevator_id, dir),
 
-            ElevatorStatusCommand::SetObstruction {elevator_id, obstruction} 
+            ElevatorStatusCommand::SetObstruction {elevator_id, obstruction}
             => self.set_elev_obstruction(elevator_id, obstruction),
 
-            ElevatorStatusCommand::SetBehaviour {elevator_id, behavior} 
+            ElevatorStatusCommand::SetBehaviour {elevator_id, behavior}
             => self.set_elev_behaviour(elevator_id, behavior),
 
-            ElevatorStatusCommand::SetCabRequests {elevator_id, orders} 
+            ElevatorStatusCommand::SetCabRequests {elevator_id, orders}
             => self.set_elev_cab_orders(elevator_id, orders),
 
             ElevatorStatusCommand::AddCabRequest {elevator_id, order}
@@ -443,15 +448,25 @@ impl WorldView {
 
     pub fn edit_order_queue(&mut self, command: OrderQueueCommand) {
         match command {
-            OrderQueueCommand::AddToOrderQueue {order}
-            => self.hall_order_queue.add_to_queue(order),
+            OrderQueueCommand::AddToOrderQueue {mut order}
+            => {
+                if !order.get_ack_barrier().contains(&self.get_id()) {
+                    order.insert_into_ack_barrier(self.get_id());
+                }
+                self.hall_order_queue.add_to_queue(order)
+            }
 
             OrderQueueCommand::RemoveFromOrderQueue {order_id}
             => self.hall_order_queue.remove_from_queue(order_id),
 
             OrderQueueCommand::SetOrderStatus {order_id, status}
             => match self.hall_order_queue.get_mut_hall_order(order_id){
-                   Some(order) => order.set_order_status(status),
+                   Some(order) => {
+                       order.set_order_status(status);
+                       if !order.get_ack_barrier().contains(&self.get_id()) {
+                           order.insert_into_ack_barrier(self.get_id());
+                       }
+                   },
                    None => {},
             },
 
@@ -467,7 +482,7 @@ impl WorldView {
                    None => {},
             },
         }
-    }    
+    }
 }
 
 pub fn memory_thread(
@@ -500,9 +515,11 @@ pub fn memory_thread(
 
                         last_seen_timers.insert(sender_id, Instant::now());
 
-                        my_local_world_view
-                            .get_mut_elevator(sender_id)
-                            .set_dead_or_alive(DeadOrAlive::Alive);
+                        if my_local_world_view.get_elevator_statuses().contains_key(&sender_id) {
+                            my_local_world_view
+                                .get_mut_elevator(sender_id)
+                                .set_dead_or_alive(DeadOrAlive::Alive);
+                        }
                     }
                     Err(_) => {
                         print!("failed to receive on rx_network for elevator {}", my_elevator_id);
@@ -538,21 +555,27 @@ pub fn memory_thread(
                 }
 
                 for id in dead_ids {
-                    my_local_world_view
-                        .get_mut_elevator(id)
-                        .set_dead_or_alive(DeadOrAlive::Dead);
+                    if my_local_world_view.get_elevator_statuses().contains_key(&id) {
+                        my_local_world_view
+                            .get_mut_elevator(id)
+                            .set_dead_or_alive(DeadOrAlive::Dead);
+                    }
                 }
             }
         }
+
+        my_local_world_view.maintain_order_statuses();
 
         tx_elevator_state
             .send(my_local_world_view.get_elevator(my_elevator_id).clone())
             .unwrap();
 
         tx_decision
-            .send(my_local_world_view.clone());
+            .send(my_local_world_view.clone())
+            .unwrap();
 
         tx_network_tx
-            .send(my_local_world_view.clone());
+            .send(my_local_world_view.clone())
+            .unwrap();
     }
 }

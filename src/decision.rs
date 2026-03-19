@@ -6,8 +6,7 @@ use crossbeam_channel as cbc;
 
 use crate::memory::elevator::{Elevator, ElevatorDirection, DeadOrAlive, Behaviour};
 use crate::memory::orders::{Order, OrderDirection, OrderType, OrderStatus};
-use crate::memory::world_view::{self, WorldView};
-
+use crate::memory::world_view::WorldView;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -18,7 +17,6 @@ pub struct ElevatorState {
     cab_requests: Vec<bool>,
 }
 
-
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Input {
@@ -26,9 +24,7 @@ pub struct Input {
     states: HashMap<String, ElevatorState>,
 }
 
-
 pub type Output = HashMap<String, Vec<[bool; 2]>>;
-
 
 impl Input {
     pub fn new(hall_requests: [[bool; 2]; 4], states: HashMap<String, ElevatorState>) -> Self {
@@ -38,7 +34,6 @@ impl Input {
         }
     }
 }
-
 
 impl ElevatorState {
     pub fn new(behaviour: Behaviour, floor: u8, direction: ElevatorDirection, cab_requests: Vec<bool>) -> Self {
@@ -51,7 +46,6 @@ impl ElevatorState {
     }
 }
 
-
 fn assigner(input: &Input, exe_path: &String) -> anyhow::Result<Output> {
     let mut hall_assigner = Command::new(exe_path)
     .stdin(Stdio::piped())
@@ -59,7 +53,7 @@ fn assigner(input: &Input, exe_path: &String) -> anyhow::Result<Output> {
     .spawn()?;
 
     let json_input = serde_json::to_vec(input)?;
-    hall_assigner.stdin.as_mut().unwrap().write_all(&json_input);
+    hall_assigner.stdin.as_mut().unwrap().write_all(&json_input)?;
     drop(hall_assigner.stdin.take());
 
     let output = hall_assigner.wait_with_output()?;
@@ -72,11 +66,10 @@ fn assigner(input: &Input, exe_path: &String) -> anyhow::Result<Output> {
     }
 
     let assignments: Output = serde_json::from_slice(&output.stdout)?;
-    Ok(assignments)
+    return Ok(assignments)
 }
 
-
-fn assigner_output_to_assigned_orders(orderMap: HashMap<String, Vec<[bool; 2]>>) -> HashMap<u16, VecDeque<Order>>{
+fn assigner_output_to_assigned_orders(orderMap: HashMap<String, Vec<[bool; 2]>>, hallOrderMap: &HashMap<u16, Order>) -> HashMap<u16, VecDeque<Order>>{
 
     let mut assignedOrdersByID: HashMap<u16, VecDeque<Order>> = HashMap::new(); 
     for (elevator, orders) in orderMap{
@@ -86,19 +79,23 @@ fn assigner_output_to_assigned_orders(orderMap: HashMap<String, Vec<[bool; 2]>>)
                                       return HashMap::new();}
         };
         let mut assignedOrders: VecDeque<Order> = VecDeque::new();  
-        let mut floor: u8 = 0;
-        for entry in orders {
+        for (floor, entry) in orders.into_iter().enumerate() {
             if entry[0] == true {
-                let up_order: Order = Order::new(floor, OrderType::Hall, 
-                                                 OrderDirection::Up);
-                assignedOrders.push_back(up_order);
+                match hallOrderMap.values().find(|order| *order.get_floor() as usize == floor
+                                                      && *order.get_order_type() == OrderType::Hall
+                                                      && *order.get_direction() == OrderDirection::Up) {
+                    Some(order) => {assignedOrders.push_back(order.clone())},
+                    None => {},
+                }
             }
             if entry[1] == true {
-                let down_order: Order  = Order::new(floor, OrderType::Hall, 
-                                                    OrderDirection::Down);
-                assignedOrders.push_back(down_order);
+                match hallOrderMap.values().find(|order| *order.get_floor() as usize == floor
+                                                      && *order.get_order_type() == OrderType::Hall
+                                                      && *order.get_direction() == OrderDirection::Down) {
+                    Some(order) => {assignedOrders.push_back(order.clone())},
+                    None => {},
+                }
             }
-            floor = floor + 1;
         };
         assignedOrdersByID.insert(id, assignedOrders);
     }
@@ -121,9 +118,9 @@ fn hall_order_format_converter(order_queue: &HashMap<u16, Order>) -> [[bool; 2];
 
 
 fn cab_order_format_converter(order_queue: &VecDeque<Order>) -> Vec<bool>{
-    let mut queue: Vec<bool> = Vec::new();
+    let mut queue: Vec<bool> = vec![false; 4];
     for order in order_queue {
-        queue[order.get_floor().clone() as usize] = true;
+        queue[*order.get_floor() as usize] = true;
     }
     return queue
 }
@@ -168,7 +165,7 @@ pub fn assign_hall_orders(last_world_view: WorldView) -> HashMap<u16, VecDeque<O
                    HashMap::new()}
     };
 
-    return assigner_output_to_assigned_orders(assignedHallOrders);
+    return assigner_output_to_assigned_orders(assignedHallOrders, &filtered_hall_orders);
 
 }
 
@@ -186,6 +183,6 @@ pub fn decision_thread(rx_decision: cbc::Receiver<WorldView>, tx_hall_orders: cb
                                                                       .unwrap_or_else(VecDeque::new)
                                                                       .into_iter()
                                                                       .collect();
-        tx_hall_orders.send(my_filtered_hall_orders);
+        tx_hall_orders.send(my_filtered_hall_orders).unwrap();
     }
 }

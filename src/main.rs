@@ -11,14 +11,15 @@ use crate::misc::generate_id;
 use crate::elevator_driver::hardware_execution::{hardware_output_thread, spawn_hardware_input_threads};
 use crate::elevator_driver::elev::ElevatorHardware;
 use crate::memory::elevator::Elevator;
-use crate::memory::orders::{Order};
+use crate::memory::orders::Order;
 use crate::memory::world_view::{WorldView, MemoryCommand, memory_thread};
 use crate::decision::decision_thread;
-use crate::udpnet::bcast::{tx, rx};
+use crate::udpnet::udp_execution::{network_rx_thread, network_tx_thread};
 
 fn main() {
     let my_elevator_id: u16 = generate_id();
     let my_session_id: u16 = rand::random();
+    let udp_port: u16 = 20013;
 
     let elevator_hw = ElevatorHardware::init("localhost:15657", 4).unwrap();
 
@@ -31,22 +32,22 @@ fn main() {
 
     let (tx_network_tx, rx_network_tx) = cbc::unbounded::<WorldView>();
 
-    spawn_hardware_input_threads(elevator_hw.clone(), tx_memory.clone(), my_elevator_id);    
+    spawn_hardware_input_threads(elevator_hw.clone(), tx_memory.clone(), my_elevator_id);
 
     {
         let tx = tx_network_to_memory.clone();
         thread::spawn(move || {
-            rx(udp_port, tx).unwrap();
+            network_rx_thread(udp_port, tx);
         });
     }
 
     {
         thread::spawn(move || {
-            tx(udp_port, rx_network_tx).unwrap();
+            network_tx_thread(udp_port, rx_network_tx);
         });
     }
 
-     {
+    {
         let tx_elevator_state = tx_elevator_state.clone();
         let tx_decision = tx_decision.clone();
         let tx_network_tx = tx_network_tx.clone();
@@ -62,7 +63,6 @@ fn main() {
             );
         });
     }
-
 
     {
         let tx_hall_orders_thread = tx_hall_orders.clone();
@@ -91,5 +91,4 @@ fn main() {
     loop {
         thread::park();
     }
-
 }
