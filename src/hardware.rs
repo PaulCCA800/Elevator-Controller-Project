@@ -14,8 +14,8 @@ hardware
     use crate::message::memory_msg::MemoryData;
     use crate::message::{Message, MessageContent};
     use crate::message::hardware_msg::{ConvertedCallButton, HardwareData};
-    use crate::memory::order::{Order, OrderDirection, OrderStatus, OrderType};
-    use crate::memory::elevator::ElevatorStatusCommand;
+    use crate::memory::orders::{Order, OrderDirection, OrderStatus, OrderType};
+    use crate::memory::world_view::ElevatorStatusCommand;
 
     const LOCAL_ADDR    : &str = "localhost:15657";
     const FLOOR_COUNT   : u8 = 4;

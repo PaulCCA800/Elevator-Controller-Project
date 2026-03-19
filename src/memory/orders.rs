@@ -1,62 +1,34 @@
-use serde::{Deserialize, Serialize};
+use serde::{Serialize, Deserialize};
 
-#[derive(Copy, Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Copy, Clone, PartialEq)]
+pub enum OrderType {
+    Cab,
+    Hall,
+}
+
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq)]
 pub enum OrderDirection {
     Up,
     Down,
     Stop
 }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize)]
-pub enum OrderType {
-    Cab,
-    Hall,
-}
-
-#[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Copy, Clone, Eq, PartialEq)]
 pub enum OrderStatus {
     Unconfirmed,
     Confirmed,
     Completed, 
+    ReadyForDeletion,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct Order {
-    pub order_id: u64,
+    order_id: u64,
     floor: u8,
     order_type: OrderType,
     direction: OrderDirection,
     order_status: OrderStatus,
     ack_barrier: Vec<u64>,
-}
-
-pub enum OrderQueueCommand {
-    AddToOrderQueue {order: Order},
-    RemoveFromOrderQueue{order_id: u64},
-    SetOrderStatus{order_id: u64, status: OrderStatus},
-    SetAckBarrier{order_id: u64, barrier: Vec<u64>},
-    InsertAckBarrier{order_id: u64, elevator_id: u64},
-}
-
-impl OrderType {
-    pub fn is_cab(call: u8) -> Self {
-        if call == 2 {
-            OrderType::Cab
-        } else {
-            OrderType::Hall
-        }
-    }
-}
-
-impl OrderDirection {
-    pub fn dir_from_call(call: u8) -> Self {
-        match call
-        {
-            2 => OrderDirection::Down,
-            1 => OrderDirection::Up,
-            _ => OrderDirection::Up
-        }
-    }
 }
 
 impl Order {

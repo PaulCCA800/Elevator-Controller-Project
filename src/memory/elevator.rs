@@ -1,10 +1,15 @@
-use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
+use serde::{Serialize, Deserialize};
 
-use crate::memory::order::Order;
-use crate::memory::world_view::WorldView;
+use crate::memory::orders::{Order};
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Copy,Clone,Eq, PartialEq, Debug)]
+pub enum DeadOrAlive {
+    Dead,
+    Alive,
+}
+
+#[derive(Serialize, Deserialize, Copy, Clone, Eq, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
 pub enum Behaviour {
     Idle,
@@ -12,13 +17,13 @@ pub enum Behaviour {
     DoorOpen,
 }
 
-#[derive(Copy, Clone, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Copy, Clone)]
 pub enum Obstruction {
     Obstructed,
     Clear,
 }
 
-#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub enum ElevatorDirection {
     Up,
@@ -26,8 +31,9 @@ pub enum ElevatorDirection {
     Stop,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Elevator {
+    dead_or_alive: DeadOrAlive,
     elevator_id: u64,
     session_id: u64,
     behaviour: Behaviour,
@@ -37,21 +43,10 @@ pub struct Elevator {
     cab_requests: VecDeque<Order>,
 }
 
-#[derive(Serialize, Deserialize)]
-pub enum ElevatorStatusCommand {
-    SetBehaviour        {elevator_id: u64, behavior: Behaviour},
-    SetObstruction      {elevator_id: u64, obstruction: Obstruction},
-    SetFloor            {elevator_id: u64, floor: u8},
-    SetDirection        {elevator_id: u64, dir: ElevatorDirection},
-    SetCabRequests      {elevator_id: u64, orders: VecDeque<Order>},
-    AddCabRequest       {elevator_id: u64, order: Order},
-    RemoveCabRequest    {elevator_id: u64},
-    SynchronizeWorldView{elevator_id: u64, world_view: WorldView},
-}
-
 impl Elevator{
     pub fn new(elevator_id: u64) -> Self{
         Self{
+            dead_or_alive: DeadOrAlive::Alive,
             elevator_id,
             session_id: Self::generate_session_id(),
             behaviour: Behaviour::Idle,
@@ -68,6 +63,14 @@ impl Elevator{
 
     fn generate_session_id() -> u64 {
         return rand::random();
+    }
+
+    pub fn get_dead_or_alive(&self) -> &DeadOrAlive{
+        return &self.dead_or_alive
+    }
+
+    pub fn set_dead_or_alive(&mut self, status: DeadOrAlive){
+        self.dead_or_alive = status
     }
 
     pub fn get_elevator_id(&self) -> &u64{
@@ -112,6 +115,10 @@ impl Elevator{
 
     pub fn get_cab_requests(&self) -> &VecDeque<Order>{
         &self.cab_requests
+    }
+
+    pub fn get_mut_cab_requests(&mut self) -> &mut VecDeque<Order>{
+        &mut self.cab_requests
     }
 
     pub fn set_cab_requests(&mut self, orders: VecDeque<Order>) {

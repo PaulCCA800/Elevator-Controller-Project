@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{message::{LOCAL_ID, hardware_msg::HardwareData, network_msg::NetworkData}};
 use crate::memory::elevator::{ElevatorStatusCommand, Obstruction};
-use crate::memory::order::{Order, OrderDirection, OrderType};
+use crate::memory::orders::{Order, OrderDirection, OrderType};
 
 fn get_obstruction(obs: bool) -> Obstruction
 {
