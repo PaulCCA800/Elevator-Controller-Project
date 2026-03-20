@@ -34,7 +34,6 @@ pub fn floor_sensor_thread(elevator_hw: ElevatorHardware, tx_memory: cbc::Sender
     loop {
         if let Some(floor) = elevator_hw.floor_sensor() {
             if floor != prev {
-                println!("FLOOR SENSOR CHANGED: {}", floor);
                 tx_memory
                     .send(MemoryCommand::ElevatorStatus(
                         ElevatorStatusCommand::SetFloor {
@@ -90,7 +89,6 @@ pub fn call_buttons_thread(elevator_hw: ElevatorHardware, tx_memory: cbc::Sender
                 let pressed = elevator_hw.call_button(floor, call);
 
                 if pressed && prev[floor as usize][call as usize] != pressed {
-                    println!("CALL BUTTON DETECTED");
                     let (order_type, direction) = match call {
                         elev::HALL_UP => (OrderType::Hall, OrderDirection::Up),
                         elev::HALL_DOWN => (OrderType::Hall, OrderDirection::Down),
@@ -115,7 +113,6 @@ pub fn call_buttons_thread(elevator_hw: ElevatorHardware, tx_memory: cbc::Sender
                                     },
                                 ))
                                 .unwrap();
-                            println!("SENDING CAB ORDER TO MEMORY");
                         }
 
                         OrderType::Hall => {
@@ -124,7 +121,6 @@ pub fn call_buttons_thread(elevator_hw: ElevatorHardware, tx_memory: cbc::Sender
                                     OrderQueueCommand::AddToOrderQueue {order},
                                 ))
                                 .unwrap();
-                            println!("SENDING HALL ORDER TO MEMORY");
                         }
                     }
                 }
@@ -197,7 +193,6 @@ my_elevator_id: u16) {
                         while let Ok(newer) = rx_elevator_state.try_recv() {
                             elevator = newer;
                         }
-                        println!("LATEST RECEIVED ELEVATOR {:?}", elevator);
                         local_elevator = Some(elevator);
                     }
                     Err(_) => {}
@@ -212,11 +207,9 @@ my_elevator_id: u16) {
                         }
                         assigned_hall_orders = hall_orders;
                     }
-                    /*{assigned_hall_orders = hall_orders;}*/
                     Err(_) => {}
                 }
             }
-
             recv(ticker) -> _ => {}
         }
 

@@ -434,10 +434,7 @@ impl WorldView {
             => self.set_elev_cab_orders(elevator_id, orders),
 
             ElevatorStatusCommand::AddCabRequest {elevator_id, order}
-            => {println!("CAB REQUESTS BEFORE ADD: {:?}", self.get_elevator(elevator_id).get_cab_requests());
-                self.add_elev_cab_order(elevator_id, order);
-                println!("CAB REQUESTS AFTER ADD: {:?} {}", self.get_elevator(elevator_id).get_cab_requests(), elevator_id);
-                },
+            => self.add_elev_cab_order(elevator_id, order),
 
             ElevatorStatusCommand::RemoveCabRequest {elevator_id}
             => self.remove_elev_cab_order(elevator_id),
@@ -540,7 +537,6 @@ pub fn memory_thread(
             }
 
             recv(rx_memory) -> message => {
-                println!("RECEIVED MESSAGE: {:?}", message);
                 match message {
                     Ok(command) => {
                         match command {
@@ -580,9 +576,6 @@ pub fn memory_thread(
         my_local_world_view.maintain_order_statuses();
 
         let elevator_snapshot = my_local_world_view.get_elevator(my_elevator_id).clone();
-        tx_count += 1;
-        println!("TX ELEVATOR #{tx_count}: {:?}", elevator_snapshot);
-
         if last_sent_elevator.as_ref() != Some(&elevator_snapshot) {
             tx_elevator_state.send(elevator_snapshot.clone()).unwrap();
             last_sent_elevator = Some(elevator_snapshot);
@@ -594,13 +587,5 @@ pub fn memory_thread(
             tx_network_tx.send(world_view_snapshot.clone()).unwrap();
             last_sent_world_view = Some(world_view_snapshot);
         }
-        
-        /*tx_decision
-            .send(my_local_world_view.clone())
-            .unwrap();*/
-
-        /*tx_network_tx
-            .send(my_local_world_view.clone())
-            .unwrap();*/
     }
 }

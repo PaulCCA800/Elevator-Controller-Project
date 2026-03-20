@@ -3,11 +3,11 @@ use std::thread;
 
 mod decision;
 mod memory;
-mod misc;
+mod elevator_id;
 mod udpnet;
 mod elevator_driver;
 
-use crate::misc::generate_id;
+use crate::elevator_id::generate_id;
 use crate::elevator_driver::hardware_execution::{hardware_output_thread, spawn_hardware_input_threads};
 use crate::elevator_driver::elev::ElevatorHardware;
 use crate::memory::elevator::Elevator;
