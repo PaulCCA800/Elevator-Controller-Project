@@ -38,7 +38,7 @@ pub struct Elevator {
     session_id: u16,
     behaviour: Behaviour,
     obstruction: Obstruction,
-    floor: u8,
+    floor: Option<u8>,
     direction: ElevatorDirection,
     cab_requests: VecDeque<Order>,
 }
@@ -51,7 +51,7 @@ impl Elevator{
             session_id: Self::generate_session_id(),
             behaviour: Behaviour::Idle,
             obstruction: Obstruction::Clear,
-            floor: 1,
+            floor: None,
             direction: ElevatorDirection::Stop,
             cab_requests: Self::initialize_cab_requests(),
         }
@@ -97,11 +97,11 @@ impl Elevator{
         self.obstruction = obstruction
     }
 
-    pub fn get_floor(&self) -> &u8{
+    pub fn get_floor(&self) -> &Option<u8>{
         return &self.floor
     }
 
-    pub fn set_floor(&mut self, floor: u8) {
+    pub fn set_floor(&mut self, floor: Option<u8>) {
         self.floor = floor;
     }
 

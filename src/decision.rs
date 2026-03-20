@@ -136,7 +136,10 @@ pub fn assign_hall_orders(last_world_view: WorldView) -> anyhow::Result<HashMap<
     let filtered_elevators: HashMap<u16, Elevator> = last_world_view
         .get_elevator_statuses()
         .iter()
-        .filter(|(_, elevator)| elevator.get_dead_or_alive() == &DeadOrAlive::Alive)
+        .filter(|(_, elevator)| {
+            elevator.get_dead_or_alive() == &DeadOrAlive::Alive
+                && elevator.get_floor().is_some()
+        })
         .map(|(id, elevator)| (*id, elevator.clone()))
         .collect();
 
@@ -145,7 +148,7 @@ pub fn assign_hall_orders(last_world_view: WorldView) -> anyhow::Result<HashMap<
         let cab_requests: Vec<bool> = cab_order_format_converter(elevator.get_cab_requests());
         let state: ElevatorState = ElevatorState::new(
             elevator.get_behaviour().clone(),
-            elevator.get_floor().clone(),
+            elevator.get_floor().expect("filtered elevator without floor"),
             elevator.get_direction().clone(),
             cab_requests,
         );

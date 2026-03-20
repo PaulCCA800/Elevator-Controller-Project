@@ -19,7 +19,7 @@ pub enum ElevatorStatusCommand {
     SetDeadOrAlive {elevator_id: u16, dead_or_alive: DeadOrAlive},
     SetBehaviour {elevator_id: u16, behavior: Behaviour},
     SetObstruction {elevator_id: u16, obstruction: Obstruction},
-    SetFloor {elevator_id: u16, floor: u8},
+    SetFloor {elevator_id: u16, floor: Option<u8>},
     SetDirection {elevator_id: u16, dir: ElevatorDirection},
     SetCabRequests {elevator_id: u16, orders: VecDeque<Order>},
     AddCabRequest {elevator_id: u16, order: Order},
@@ -116,7 +116,7 @@ impl WorldView {
         self.get_mut_elevator(elevator_id).set_dead_or_alive(dead_or_alive);
     }
 
-    pub fn set_elev_current_floor(&mut self, elevator_id: u16, floor: u8) {
+    pub fn set_elev_current_floor(&mut self, elevator_id: u16, floor: Option<u8>) {
         self.get_mut_elevator(elevator_id).set_floor(floor);
     }
 
@@ -380,7 +380,7 @@ impl WorldView {
 
                 my_stored_elevator.set_behavior(*other_stored_elevator.get_behaviour());
                 my_stored_elevator.set_obstruction(*other_stored_elevator.get_obstruction());
-                my_stored_elevator.set_floor(*other_stored_elevator.get_floor());
+                my_stored_elevator.set_floor(other_stored_elevator.get_floor().clone());
                 my_stored_elevator.set_direction(*other_stored_elevator.get_direction());
                 my_stored_elevator.set_cab_requests(other_stored_elevator.get_cab_requests().clone());
                 my_stored_elevator.set_dead_or_alive(*other_stored_elevator.get_dead_or_alive());

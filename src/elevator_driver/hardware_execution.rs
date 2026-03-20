@@ -14,6 +14,7 @@ pub struct HardwareExecutionState {
     direction_to_clear_after_wait: Option<OrderDirection>,
     travel_target_floor: Option<u8>,
     travel_start_time: Option<Instant>,
+    last_known_floor: Option<u8>,
 }
 
 impl HardwareExecutionState {
@@ -23,30 +24,35 @@ impl HardwareExecutionState {
             direction_to_clear_after_wait: None,
             travel_target_floor: None,
             travel_start_time: None,
+            last_known_floor: None,
         }
     }
 }
 
 pub fn floor_sensor_thread(elevator_hw: ElevatorHardware, tx_memory: cbc::Sender<MemoryCommand>, my_elevator_id: u16, period: Duration){
 
-    let mut prev = u8::MAX;
+    let mut prev: Option<u8> = None;
+    let mut initialized: bool = false;
     
     loop {
-        if let Some(floor) = elevator_hw.floor_sensor() {
-            if floor != prev {
-                tx_memory
-                    .send(MemoryCommand::ElevatorStatus(
-                        ElevatorStatusCommand::SetFloor {
-                            elevator_id: my_elevator_id,
-                            floor,
-                        },
-                    ))
-                    .unwrap();
+        let floor: Option<u8> = elevator_hw.floor_sensor();
 
-                prev = floor;
-            }
+        if !initialized || floor != prev {
+            println!("FLOOR SENSOR CHANGED: {:?}", floor);
+            tx_memory
+                .send(MemoryCommand::ElevatorStatus(
+                    ElevatorStatusCommand::SetFloor {
+                        elevator_id: my_elevator_id,
+                        floor,
+                    },
+                ))
+                .unwrap();
+
+            prev = floor;
+            initialized = true;
         }
-    thread::sleep(period);
+
+        thread::sleep(period);
     }
 }
 
@@ -236,8 +242,12 @@ my_elevator_id: u16, execution_state: &mut HardwareExecutionState) {
         elevator_hw.num_floors,
     );
 
-    let current_floor: u8 = *elevator_state.get_floor();
-    elevator_hw.floor_indicator(current_floor);
+    let current_floor: Option<u8> = elevator_state.get_floor().clone();
+
+    if let Some(floor) = current_floor {
+        execution_state.last_known_floor = Some(floor);
+        elevator_hw.floor_indicator(floor);
+    }
 
     if matches!(elevator_state.get_dead_or_alive(), DeadOrAlive::Dead) {
         elevator_hw.motor_direction(elev::DIRN_STOP);
@@ -265,16 +275,18 @@ my_elevator_id: u16, execution_state: &mut HardwareExecutionState) {
         }
 
         if Instant::now() >= door_open_until {
-            match execution_state.direction_to_clear_after_wait.take() {
-                Some(direction) => {
-                    mark_served_hall_orders(assigned_hall_orders,
-                                            current_floor,
-                                            Some(direction),
-                                            tx_memory);
+            match (execution_state.direction_to_clear_after_wait.take(), current_floor) {
+                (Some(direction), Some(floor)) => {
+                    mark_served_hall_orders(
+                        assigned_hall_orders,
+                        floor,
+                        Some(direction),
+                        tx_memory,
+                    );
                     execution_state.door_open_until = Some(Instant::now() + Duration::from_secs(3));
                     return;
                 }
-                None => {
+                _ => {
                     execution_state.door_open_until = None;
                     elevator_hw.door_light(false);
                 }
@@ -307,45 +319,98 @@ my_elevator_id: u16, execution_state: &mut HardwareExecutionState) {
         return;
     }
 
-    let target_floor: u8 = choose_next_floor(current_floor, &all_orders);
+    let target_floor: u8 = match current_floor {
+        Some(floor) => {
+            let chosen = choose_next_floor(floor, &all_orders);
+            execution_state.travel_target_floor = Some(chosen);
+            chosen
+        }
 
-    if current_floor == target_floor {
-        set_dead_or_alive_if_changed(tx_memory, my_elevator_id, elevator_state, DeadOrAlive::Alive);
-        execution_state.travel_target_floor = None;
-        execution_state.travel_start_time = None;
+        None => {
+            if let Some(target) = execution_state.travel_target_floor {
+                target
+            } else if let Some(last_floor) = execution_state.last_known_floor {
+                let chosen = choose_next_floor(last_floor, &all_orders);
+                execution_state.travel_target_floor = Some(chosen);
+                chosen
+            } else {
+                let chosen = *all_orders
+                    .iter()
+                    .map(|o| o.get_floor())
+                    .min()
+                    .expect("orders unexpectedly empty");
+                execution_state.travel_target_floor = Some(chosen);
+                chosen
+            }
+        }
+    };
 
-        elevator_hw.motor_direction(elev::DIRN_STOP);
-        elevator_hw.door_light(true);
-        set_behaviour_if_changed(tx_memory, my_elevator_id, elevator_state, Behaviour::DoorOpen);
-        set_direction_if_changed(tx_memory, my_elevator_id, elevator_state, ElevatorDirection::Stop);
+    if let Some(floor) = current_floor {
+        if floor == target_floor {
+            set_dead_or_alive_if_changed(tx_memory, my_elevator_id, elevator_state, DeadOrAlive::Alive);
+            execution_state.travel_target_floor = None;
+            execution_state.travel_start_time = None;
 
-        let (first_direction_to_clear, second_direction_to_clear) = choose_hall_directions_to_clear(elevator_state,
-                                                                                                     assigned_hall_orders,
-                                                                                                     &all_orders,
-                                                                                                     current_floor);
+            elevator_hw.motor_direction(elev::DIRN_STOP);
+            elevator_hw.door_light(true);
+            set_behaviour_if_changed(tx_memory, my_elevator_id, elevator_state, Behaviour::DoorOpen);
+            set_direction_if_changed(tx_memory, my_elevator_id, elevator_state, ElevatorDirection::Stop);
 
-        mark_served_orders(elevator_state,
-                           assigned_hall_orders,
-                           current_floor,
-                           first_direction_to_clear,
-                           tx_memory,
-                           my_elevator_id);
+            let (first_direction_to_clear, second_direction_to_clear) = choose_hall_directions_to_clear(
+                elevator_state,
+                assigned_hall_orders,
+                &all_orders,
+                floor,
+            );
 
-        execution_state.door_open_until = Some(Instant::now() + Duration::from_secs(3));
-        execution_state.direction_to_clear_after_wait = second_direction_to_clear;
-        return;
+            mark_served_orders(
+                elevator_state,
+                assigned_hall_orders,
+                floor,
+                first_direction_to_clear,
+                tx_memory,
+                my_elevator_id,
+            );
+
+            execution_state.door_open_until = Some(Instant::now() + Duration::from_secs(3));
+            execution_state.direction_to_clear_after_wait = second_direction_to_clear;
+            return;
+        }
     }
 
     execution_state.direction_to_clear_after_wait = None;
 
-    let moving_direction: ElevatorDirection = if target_floor > current_floor {
-        ElevatorDirection::Up
-    } else {
-        ElevatorDirection::Down
+    let moving_direction: ElevatorDirection = match current_floor {
+        Some(floor) => {
+            if target_floor > floor {
+                ElevatorDirection::Up
+            } else {
+                ElevatorDirection::Down
+            }
+        }
+
+        None => {
+            match elevator_state.get_direction() {
+                ElevatorDirection::Stop => {
+                    if let Some(last_floor) = execution_state.last_known_floor {
+                        if target_floor > last_floor {
+                            ElevatorDirection::Up
+                        } else {
+                            ElevatorDirection::Down
+                        }
+                    } else {
+                        ElevatorDirection::Up
+                    }
+                }
+                dir => *dir,
+            }
+        }
     };
 
     if execution_state.travel_target_floor != Some(target_floor) {
         execution_state.travel_target_floor = Some(target_floor);
+        execution_state.travel_start_time = Some(Instant::now());
+    } else if execution_state.travel_start_time.is_none() {
         execution_state.travel_start_time = Some(Instant::now());
     }
 
