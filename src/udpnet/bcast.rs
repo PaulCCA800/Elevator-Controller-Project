@@ -12,10 +12,15 @@ mod sock;
 pub fn tx<T: serde::Serialize>(port: u16, ch: cbc::Receiver<T>) -> std::io::Result<()> {
     let (s, addr) = sock::new_tx(port)?;
     loop {
-        let data = match ch.recv() {
+        let mut data = match ch.recv() {
             Ok(data) => data,
             Err(_) => continue,
         };
+
+        while let Ok(newer) = ch.try_recv() {
+            data = newer;
+        }
+        
         let serialized = match serde_json::to_string(&data) {
             Ok(serialized) => serialized,
             Err(e) => {

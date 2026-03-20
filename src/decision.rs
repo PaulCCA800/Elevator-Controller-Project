@@ -1,6 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 use std::io::Write;
-use std::process::{Command, Stdio};
+use std::process::{Command};
 use serde::{Serialize, Deserialize};
 use crossbeam_channel as cbc;
 
@@ -24,7 +24,7 @@ pub struct Input {
     states: HashMap<String, ElevatorState>,
 }
 
-pub type Output = HashMap<String, Vec<[bool; 2]>>;
+pub type Output = HashMap<String, Vec<[bool; 3]>>;
 
 impl Input {
     pub fn new(hall_requests: [[bool; 2]; 4], states: HashMap<String, ElevatorState>) -> Self {
@@ -47,13 +47,34 @@ impl ElevatorState {
 }
 
 fn assigner(input: &Input, exe_path: &String) -> anyhow::Result<Output> {
-    let mut hall_assigner = Command::new(exe_path)
-    .stdin(Stdio::piped())
-    .stdout(Stdio::piped())
-    .spawn()?;
+    let output = Command::new(exe_path)
+        .arg("-i")
+        .arg(
+            serde_json::to_string(&input)
+                .expect("could not convert hall assigner input to json string"),
+        )
+        .output()
+        .expect("no output");
+
+        let assigner_output: Output = serde_json::from_slice(&output.stdout)
+            .expect("could not convert hall assigner output to output struct");
+
+        Ok(assigner_output)
+        /* .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
 
     let json_input = serde_json::to_vec(input)?;
-    hall_assigner.stdin.as_mut().unwrap().write_all(&json_input)?;
+    println!("INPUT JSON {}", String::from_utf8_lossy(&json_input));
+
+    {
+        let stdin = hall_assigner.stdin.as_mut().unwrap();
+        stdin.write_all(format!("-i '{:?}'", &json_input).as_bytes())?;
+        stdin.write_all(b"\n")?;
+        stdin.flush()?;
+    }
+
     drop(hall_assigner.stdin.take());
 
     let output = hall_assigner.wait_with_output()?;
@@ -66,10 +87,10 @@ fn assigner(input: &Input, exe_path: &String) -> anyhow::Result<Output> {
     }
 
     let assignments: Output = serde_json::from_slice(&output.stdout)?;
-    return Ok(assignments)
+    Ok(assignments)*/
 }
 
-fn assigner_output_to_assigned_orders(orderMap: HashMap<String, Vec<[bool; 2]>>, hallOrderMap: &HashMap<u16, Order>) -> HashMap<u16, VecDeque<Order>>{
+fn assigner_output_to_assigned_orders(orderMap: HashMap<String, Vec<[bool; 3]>>, hallOrderMap: &HashMap<u16, Order>) -> HashMap<u16, VecDeque<Order>>{
 
     let mut assignedOrdersByID: HashMap<u16, VecDeque<Order>> = HashMap::new(); 
     for (elevator, orders) in orderMap{
@@ -157,11 +178,11 @@ pub fn assign_hall_orders(last_world_view: WorldView) -> HashMap<u16, VecDeque<O
     let queue: [[bool; 2]; 4] = hall_order_format_converter(&filtered_hall_orders);
  
     let input: Input = Input::new(queue, states); 
-    let path_to_assigner: String = "../Project-resources/cost_fns/hall_request_assigner".to_string(); 
+    let path_to_assigner: String = "./bin/hall_request_assigner".to_string(); 
 
     let assignedHallOrders = match assigner(&input, &path_to_assigner) {
         Ok(assignments) => {assignments}
-        Err(_) => {println!("Failed to retrieve assignments from assigner. Constructing empty hashmap.");
+        Err(e) => {println!("Failed to retrieve assignments from assigner. {}", e);
                    HashMap::new()}
     };
 
@@ -173,16 +194,33 @@ pub fn decision_thread(rx_decision: cbc::Receiver<WorldView>, tx_hall_orders: cb
 
     let mut assigned_hall_orders: HashMap<u16, VecDeque<Order>> = HashMap::new();
 
+    let mut last_sent_hall_orders: Option<Vec<Order>> = None;
+
     loop {
-        match rx_decision.recv(){
-            Ok(world_view) => {assigned_hall_orders = assign_hall_orders(world_view)},
-            Err(_) => println!("failed to receive on rx_decision for elevator {}", my_elevator_id),
-        } 
-        let my_filtered_hall_orders: Vec<Order> = assigned_hall_orders.get(&my_elevator_id)
-                                                                      .cloned()
-                                                                      .unwrap_or_else(VecDeque::new)
-                                                                      .into_iter()
-                                                                      .collect();
-        tx_hall_orders.send(my_filtered_hall_orders).unwrap();
+        match rx_decision.recv() {
+            Ok(mut world_view) => {
+                while let Ok(newer) = rx_decision.try_recv() {
+                    world_view = newer;
+                }
+
+                assigned_hall_orders = assign_hall_orders(world_view);
+
+                let my_filtered_hall_orders: Vec<Order> = assigned_hall_orders
+                    .get(&my_elevator_id)
+                    .cloned()
+                    .unwrap_or_else(VecDeque::new)
+                    .into_iter()
+                    .collect();
+
+                if last_sent_hall_orders.as_ref() != Some(&my_filtered_hall_orders) {
+                    tx_hall_orders.send(my_filtered_hall_orders.clone()).unwrap();
+                    last_sent_hall_orders = Some(my_filtered_hall_orders);
+                }
+            }
+
+            Err(_) => {
+                println!("failed to receive on rx_decision for elevator {}", my_elevator_id);
+            }
+        }
     }
 }
