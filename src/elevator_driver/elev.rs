@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use std::env;
 use std::fmt;
 use std::io::*;
 use std::net::TcpStream;
@@ -18,6 +19,15 @@ pub const CAB: u8 = 2;
 pub const DIRN_DOWN: u8 = u8::MAX;
 pub const DIRN_STOP: u8 = 0;
 pub const DIRN_UP: u8 = 1;
+
+pub fn get_tcp_address() -> String {
+    let args: Vec<String> = env::args().collect();
+
+    match args.get(2) {
+        Some(arg) => arg.clone(),
+        None => "localhost:15657".to_string(),
+    }
+}
 
 impl ElevatorHardware {
     pub fn init(addr: &str, num_floors: u8) -> Result<ElevatorHardware> {
