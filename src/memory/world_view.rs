@@ -6,13 +6,15 @@ use std::time::{Duration, Instant};
 use crate::memory::elevator::{DeadOrAlive, Behaviour, Obstruction, ElevatorDirection, Elevator};
 use crate::memory::hall_order_queue::HallOrderQueue;
 use crate::memory::orders::{OrderStatus, Order};
+use crate::memory::world_view;
 
+#[derive(Debug)]
 pub enum MemoryCommand {
     ElevatorStatus(ElevatorStatusCommand),
     OrderQueue(OrderQueueCommand),
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ElevatorStatusCommand {
     SetDeadOrAlive {elevator_id: u16, dead_or_alive: DeadOrAlive},
     SetBehaviour {elevator_id: u16, behavior: Behaviour},
@@ -26,7 +28,7 @@ pub enum ElevatorStatusCommand {
     SynchronizeWorldView {world_view: WorldView},
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum OrderQueueCommand {
     AddToOrderQueue {order: Order},
     RemoveFromOrderQueue{order_id: u16},
@@ -35,7 +37,7 @@ pub enum OrderQueueCommand {
     InsertAckBarrier{order_id: u16, elevator_id: u16},
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct WorldView {
     my_elevator_id: u16,
     session_id: u16,
@@ -504,6 +506,10 @@ pub fn memory_thread(
     last_seen_timers.insert(my_elevator_id, Instant::now());
 
     let ticker = cbc::tick(Duration::from_millis(50));
+    
+    let mut tx_count: u64 = 0;
+    let mut last_sent_elevator: Option<Elevator> = None;
+    let mut last_sent_world_view: Option<WorldView> = None;
 
     loop {
         cbc::select! {
@@ -569,16 +575,17 @@ pub fn memory_thread(
 
         my_local_world_view.maintain_order_statuses();
 
-        tx_elevator_state
-            .send(my_local_world_view.get_elevator(my_elevator_id).clone())
-            .unwrap();
+        let elevator_snapshot = my_local_world_view.get_elevator(my_elevator_id).clone();
+        if last_sent_elevator.as_ref() != Some(&elevator_snapshot) {
+            tx_elevator_state.send(elevator_snapshot.clone()).unwrap();
+            last_sent_elevator = Some(elevator_snapshot);
+        }
 
-        tx_decision
-            .send(my_local_world_view.clone())
-            .unwrap();
-
-        tx_network_tx
-            .send(my_local_world_view.clone())
-            .unwrap();
+        let world_view_snapshot = my_local_world_view.clone();
+        if last_sent_world_view.as_ref() != Some(&world_view_snapshot){
+            tx_decision.send(world_view_snapshot.clone()).unwrap();
+            tx_network_tx.send(world_view_snapshot.clone()).unwrap();
+            last_sent_world_view = Some(world_view_snapshot);
+        }
     }
 }

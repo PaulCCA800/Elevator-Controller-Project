@@ -1,18 +1,18 @@
 use serde::{Serialize, Deserialize};
 
-#[derive(Serialize, Deserialize, Copy, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Copy, Clone, PartialEq, Eq, Debug)]
 pub enum OrderType {
     Cab,
     Hall,
 }
 
-#[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq, Eq)]
 pub enum OrderDirection {
     Up,
     Down,
 }
 
-#[derive(Serialize, Deserialize, Copy, Clone, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Copy, Clone, Eq, PartialEq, Debug)]
 pub enum OrderStatus {
     Unconfirmed,
     Confirmed,
@@ -20,7 +20,7 @@ pub enum OrderStatus {
     ReadyForDeletion,
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Eq)]
 pub struct Order {
     order_id: u16,
     floor: u8,

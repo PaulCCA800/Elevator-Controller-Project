@@ -17,7 +17,7 @@ pub enum Behaviour {
     DoorOpen,
 }
 
-#[derive(Serialize, Deserialize, Copy, Clone, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Copy, Clone, Eq, PartialEq, Debug)]
 pub enum Obstruction {
     Obstructed,
     Clear,
@@ -31,7 +31,7 @@ pub enum ElevatorDirection {
     Stop,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Elevator {
     dead_or_alive: DeadOrAlive,
     elevator_id: u16,

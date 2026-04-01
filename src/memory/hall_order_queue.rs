@@ -3,7 +3,7 @@ use serde::{Serialize, Deserialize};
 
 use crate::memory::orders::{Order, OrderStatus};
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct HallOrderQueue{
     hall_order_queue: HashMap<u16, Order>,
 }

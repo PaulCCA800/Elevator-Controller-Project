@@ -9,7 +9,7 @@ use crate::memory::world_view::{MemoryCommand, ElevatorStatusCommand, OrderQueue
 use crate::memory::elevator::{Elevator, Obstruction, DeadOrAlive, Behaviour, ElevatorDirection};
 use crate::memory::orders::{Order, OrderDirection, OrderStatus, OrderType};
 
-struct HardwareExecutionState {
+pub struct HardwareExecutionState {
     door_open_until: Option<Instant>,
     direction_to_clear_after_wait: Option<OrderDirection>,
     travel_target_floor: Option<u8>,
@@ -101,6 +101,7 @@ pub fn call_buttons_thread(elevator_hw: ElevatorHardware, tx_memory: cbc::Sender
 
                     let mut order = Order::new(floor, order_type, direction);
                     order.insert_into_ack_barrier(my_elevator_id);
+                    println!("NEW ORDER {:?}", &order);
 
                     match order_type {
                         OrderType::Cab => {
@@ -182,22 +183,33 @@ my_elevator_id: u16) {
     let mut execution_state: HardwareExecutionState = HardwareExecutionState::new();
     let ticker = cbc::tick(Duration::from_millis(25));
 
+    let mut rx_count: u64 = 0;
+
     loop {
         cbc::select! {
             recv(rx_elevator_state) -> msg => {
                 match msg {
-                    Ok(elevator) => {local_elevator = Some(elevator);}
+                    Ok(mut elevator) => {
+                        while let Ok(newer) = rx_elevator_state.try_recv() {
+                            elevator = newer;
+                        }
+                        local_elevator = Some(elevator);
+                    }
                     Err(_) => {}
                 }
             }
 
             recv(rx_hall_orders) -> msg => {
                 match msg {
-                    Ok(hall_orders) => {assigned_hall_orders = hall_orders;}
+                    Ok(mut hall_orders) => {
+                        while let Ok(newer) = rx_hall_orders.try_recv() {
+                            hall_orders = newer;
+                        }
+                        assigned_hall_orders = hall_orders;
+                    }
                     Err(_) => {}
                 }
             }
-
             recv(ticker) -> _ => {}
         }
 
