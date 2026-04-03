@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+/*use std::collections::HashMap;
 use std::str;
 use std::time;
 
@@ -89,4 +89,4 @@ pub fn rx(port: u16, peer_update: cbc::Sender<PeerUpdate>) -> std::io::Result<()
             }
         }
     }
-}
+}*/

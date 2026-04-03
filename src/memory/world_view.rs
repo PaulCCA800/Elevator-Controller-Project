@@ -4,9 +4,8 @@ use crossbeam_channel as cbc;
 use std::time::{Duration, Instant};
 
 use crate::memory::elevator::{DeadOrAlive, Behaviour, Obstruction, ElevatorDirection, Elevator};
-use crate::memory::hall_order_queue::HallOrderQueue;
+use crate::memory::hall_order_queue::{HallOrderQueue, hall_order_status_rank};
 use crate::memory::orders::{OrderStatus, Order};
-use crate::memory::world_view;
 
 #[derive(Debug)]
 pub enum MemoryCommand {
@@ -193,7 +192,7 @@ impl WorldView {
         *counter = counter.wrapping_add(1);
     }
 
-    fn get_unknown_counter(&mut self, world_view: &WorldView, elevetor_id: u16){
+    fn add_unknown_counter(&mut self, world_view: &WorldView, elevetor_id: u16){
         
         if !self.get_write_counter().keys().any(|k| k == &elevetor_id){
                 let incoming_write_counter: u16 = match world_view.get_write_counter().get(&elevetor_id){
@@ -220,30 +219,58 @@ impl WorldView {
 
             else if order.get_order_status() == &OrderStatus::Completed && unique_elevator_ids_count == num_elevators as usize{
                 order.set_order_status(OrderStatus::ReadyForDeletion);
+                println!("ORDER READY FOR DELETION: {}", order.get_order_id());
                 order.get_mut_ack_barrier().clear();
             }
 
             else if order.get_order_status() == &OrderStatus::ReadyForDeletion && unique_elevator_ids_count == num_elevators as usize{
+                println!("ORDER DELETED: {}", order.get_order_id());
                 orders_to_remove.push(order.clone());
             }
         }
         my_cab_orders.retain(|o| !orders_to_remove.contains(o));    
     }
 
-    fn update_my_hall_order_queue(&mut self, elevator_id: u16, world_view: &WorldView, me_resurrected: bool, other_resurrected: bool){
-
-        if (self.is_counter_newer(&elevator_id, world_view, me_resurrected) == true) && !other_resurrected{
-
-            let incoming_hall_order_queue: &HashMap<u16, Order> = world_view.hall_order_queue.get_order_queue();
+    fn update_my_hall_order_queue(
+        &mut self,
+        elevator_id: u16,
+        world_view: &WorldView,
+        me_resurrected: bool,
+        other_resurrected: bool,
+    ) {
+        if self.is_counter_newer(&elevator_id, world_view, me_resurrected) && !other_resurrected {
+            let incoming_hall_order_queue: &HashMap<u16, Order> =
+                world_view.hall_order_queue.get_order_queue();
             let my_id: u16 = self.get_id();
 
-            let my_hall_order_queue: &mut HashMap<u16, Order> = self.hall_order_queue.get_mut_hall_order_queue();
-            let incoming_hall_order_ids: Vec<&u16> = incoming_hall_order_queue.keys().collect();
-            for &id in incoming_hall_order_ids{
-                let mut order: Order = world_view.hall_order_queue.get_hall_order(id).clone(); 
-                if !my_hall_order_queue.keys().any(|k| *k == id){
-                    order.insert_into_ack_barrier(my_id);
-                    my_hall_order_queue.insert(id, order);
+            let my_hall_order_queue: &mut HashMap<u16, Order> =
+                self.hall_order_queue.get_mut_hall_order_queue();
+
+            let incoming_hall_order_ids: Vec<u16> = incoming_hall_order_queue.keys().cloned().collect();
+
+            for id in incoming_hall_order_ids {
+                let mut incoming_order: Order = world_view
+                    .get_hall_order_queue()
+                    .get_hall_order(id)
+                    .clone();
+
+                match my_hall_order_queue.get(&id) {
+                    None => {
+                        incoming_order.insert_into_ack_barrier(my_id);
+                        my_hall_order_queue.insert(id, incoming_order);
+                    }
+
+                    Some(my_order) => {
+                        let my_status: &OrderStatus = my_order.get_order_status();
+                        let incoming_status: &OrderStatus = incoming_hall_order_queue
+                            .get(&id)
+                            .unwrap_or_else(|| panic!("critical error retrieving hall order {}", id))
+                            .get_order_status();
+
+                        if hall_order_status_rank(incoming_status) > hall_order_status_rank(my_status) {
+                            my_hall_order_queue.insert(id, incoming_order);
+                        }
+                    }
                 }
             }
         }
@@ -295,23 +322,31 @@ impl WorldView {
         }
     }
 
-    fn update_hall_ack_barriers(&mut self, elevator_id: u16, world_view: &WorldView, me_resurrected: bool, other_resurrected: bool){
+    fn update_hall_ack_barriers(
+        &mut self,
+        elevator_id: u16,
+        world_view: &WorldView,
+        me_resurrected: bool,
+        other_resurrected: bool,
+    ) {
+        if self.is_counter_newer(&elevator_id, world_view, me_resurrected) && !other_resurrected {
+            let incoming_hall_order_queue: &HashMap<u16, Order> =
+                world_view.hall_order_queue.get_order_queue();
 
-        if (self.is_counter_newer(&elevator_id, world_view, me_resurrected) == true) && !other_resurrected{
+            for order in incoming_hall_order_queue.values() {
+                let order_id: u16 = *order.get_order_id();
+                let elevator_ids_in_other_barrier: Vec<u16> =
+                    order.get_ack_barrier().iter().cloned().collect();
 
-            let incoming_hall_order_queue: &HashMap<u16, Order> = world_view.hall_order_queue.get_order_queue();
-
-            for order in incoming_hall_order_queue.values(){ 
-
-                let order_id: u16 = order.get_order_id().clone();
-                let elevator_ids_in_other_barrier: Vec<u16> = order.get_ack_barrier().iter().cloned().collect();
-
-                match self.hall_order_queue.get_mut_hall_order(order_id){
-                    Some(my_order) 
-                    => {for id in elevator_ids_in_other_barrier{
-                            if !my_order.get_ack_barrier().contains(&id){my_order.insert_into_ack_barrier(id);}}},
-                    None 
-                    => {},
+                match self.hall_order_queue.get_mut_hall_order(order_id) {
+                    Some(my_order) => {
+                        for id in elevator_ids_in_other_barrier {
+                            if !my_order.get_ack_barrier().contains(&id) {
+                                my_order.insert_into_ack_barrier(id);
+                            }
+                        }
+                    }
+                    None => {}
                 }
             }
         }
@@ -366,7 +401,7 @@ impl WorldView {
 
         for id in other_last_recorded_session_ids.keys(){
 
-            self.get_unknown_counter(&world_view, *id);
+            self.add_unknown_counter(&world_view, *id);
 
             let is_newer = self.is_counter_newer(id, &world_view, me_resurrected);
 
@@ -507,7 +542,6 @@ pub fn memory_thread(
 
     let ticker = cbc::tick(Duration::from_millis(50));
     
-    let mut tx_count: u64 = 0;
     let mut last_sent_elevator: Option<Elevator> = None;
     let mut last_sent_world_view: Option<WorldView> = None;
 
@@ -584,7 +618,9 @@ pub fn memory_thread(
         let world_view_snapshot = my_local_world_view.clone();
         if last_sent_world_view.as_ref() != Some(&world_view_snapshot){
             tx_decision.send(world_view_snapshot.clone()).unwrap();
+
             tx_network_tx.send(world_view_snapshot.clone()).unwrap();
+            
             last_sent_world_view = Some(world_view_snapshot);
         }
     }

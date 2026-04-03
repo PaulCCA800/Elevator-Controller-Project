@@ -2,15 +2,19 @@ use crossbeam_channel as cbc;
 use log::warn;
 use serde::Deserialize;
 use socket2::Socket;
-
+use std::time::{Duration, Instant};
 use std::error;
 use std::str;
+
+use crate::STARTUP_DELAY;
 
 #[path = "./sock.rs"]
 mod sock;
 
 pub fn tx<T: serde::Serialize>(port: u16, ch: cbc::Receiver<T>) -> std::io::Result<()> {
     let (s, addr) = sock::new_tx(port)?;
+    let startup_delay: Duration = Duration::from_millis(STARTUP_DELAY);
+    let startup_time: Instant = Instant::now();
     loop {
         let mut data = match ch.recv() {
             Ok(data) => data,
@@ -28,8 +32,10 @@ pub fn tx<T: serde::Serialize>(port: u16, ch: cbc::Receiver<T>) -> std::io::Resu
                 continue;
             }
         };
-        if let Err(e) = s.send_to(serialized.as_bytes(), &addr) {
-            warn!("Unable to send packet, {}", e);
+        if startup_time.elapsed() >= startup_delay {
+            if let Err(e) = s.send_to(serialized.as_bytes(), &addr) {
+                warn!("Unable to send packet, {}", e);
+            }
         }
     }
 }
