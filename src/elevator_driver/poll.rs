@@ -4,11 +4,13 @@ use std::time;
 
 use super::elev;
 
+
 #[derive(Debug)]
 pub struct CallButton {
     pub floor: u8,
     pub call: u8,
 }
+
 
 pub fn call_buttons(elev: elev::ElevatorHardware, ch: cbc::Sender<CallButton>, period: time::Duration) {
     let mut prev = vec![[false; 3]; elev.num_floors.into()];
@@ -26,6 +28,7 @@ pub fn call_buttons(elev: elev::ElevatorHardware, ch: cbc::Sender<CallButton>, p
     }
 }
 
+
 pub fn floor_sensor(elev: elev::ElevatorHardware, ch: cbc::Sender<u8>, period: time::Duration) {
     let mut prev = u8::MAX;
     loop {
@@ -39,6 +42,7 @@ pub fn floor_sensor(elev: elev::ElevatorHardware, ch: cbc::Sender<u8>, period: t
     }
 }
 
+
 pub fn stop_button(elev: elev::ElevatorHardware, ch: cbc::Sender<bool>, period: time::Duration) {
     let mut prev = false;
     loop {
@@ -50,6 +54,7 @@ pub fn stop_button(elev: elev::ElevatorHardware, ch: cbc::Sender<bool>, period: 
         thread::sleep(period)
     }
 }
+
 
 pub fn obstruction(elev: elev::ElevatorHardware, ch: cbc::Sender<bool>, period: time::Duration) {
     let mut prev = false;

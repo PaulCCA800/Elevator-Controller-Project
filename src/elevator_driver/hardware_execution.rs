@@ -5,19 +5,21 @@ use std::collections::VecDeque;
 
 use crate::elevator_driver::elev::{ElevatorHardware}; 
 use crate::elevator_driver::elev;
-use crate::memory::world_view::{MemoryCommand, ElevatorStatusCommand, OrderQueueCommand};
+use crate::memory::world_view::{MemoryCommand, ElevatorStatusCommand, HallOrderQueueCommand};
 use crate::memory::elevator::{Elevator, Obstruction, DeadOrAlive, Behaviour, ElevatorDirection};
-use crate::memory::orders::{Order, OrderDirection, OrderStatus, OrderType};
+use crate::memory::order::{Order, OrderDirection, OrderStatus, OrderType};
 use crate::STARTUP_DELAY;
 
-pub struct HardwareExecutionState {
+
+pub struct HardwareExecutionContext {
     door_open_until: Option<Instant>,
     direction_to_clear_after_wait: Option<OrderDirection>,
     travel_target_floor: Option<u8>,
     travel_start_time: Option<Instant>,
 }
 
-impl HardwareExecutionState {
+
+impl HardwareExecutionContext {
     fn new() -> Self{
         Self{
             door_open_until: None,
@@ -28,8 +30,13 @@ impl HardwareExecutionState {
     }
 }
 
-pub fn floor_sensor_thread(elevator_hw: ElevatorHardware, tx_memory: cbc::Sender<MemoryCommand>, my_elevator_id: u16, period: Duration){
 
+pub fn floor_sensor_thread(
+    elevator_hw: ElevatorHardware, 
+    tx_memory: cbc::Sender<MemoryCommand>, 
+    my_elevator_id: u16, 
+    period: Duration
+) {
     let mut prev = u8::MAX;
     
     loop {
@@ -52,12 +59,17 @@ pub fn floor_sensor_thread(elevator_hw: ElevatorHardware, tx_memory: cbc::Sender
 }
 
 
-pub fn obstruction_thread( elevator_hw: ElevatorHardware, tx_memory: cbc::Sender<MemoryCommand>, my_elevator_id: u16, period: Duration,){
+pub fn obstruction_thread(
+    elevator_hw: ElevatorHardware, 
+    tx_memory: cbc::Sender<MemoryCommand>, 
+    my_elevator_id: u16, 
+    period: Duration
+) {
 
     let mut prev = Obstruction::Clear;
 
     loop {
-        let obstruction = match elevator_hw.obstruction(){
+        let obstruction = match elevator_hw.obstruction() {
             false => Obstruction::Clear,
             true => Obstruction::Obstructed,
         };
@@ -79,7 +91,12 @@ pub fn obstruction_thread( elevator_hw: ElevatorHardware, tx_memory: cbc::Sender
 }
 
 
-pub fn call_buttons_thread(elevator_hw: ElevatorHardware, tx_memory: cbc::Sender<MemoryCommand>, my_elevator_id: u16, period: Duration) {
+pub fn call_buttons_thread(
+    elevator_hw: ElevatorHardware, 
+    tx_memory: cbc::Sender<MemoryCommand>, 
+    my_elevator_id: u16, 
+    period: Duration
+) {
 
     let mut prev = vec![[false; 3]; elevator_hw.num_floors as usize];
     let startup_delay: Duration = Duration::from_millis(STARTUP_DELAY);
@@ -110,7 +127,7 @@ pub fn call_buttons_thread(elevator_hw: ElevatorHardware, tx_memory: cbc::Sender
                             OrderType::Cab => {
                                 tx_memory
                                     .send(MemoryCommand::ElevatorStatus(
-                                        ElevatorStatusCommand::AddCabRequest {
+                                        ElevatorStatusCommand::AddCabOrder {
                                             elevator_id: my_elevator_id,
                                             order,
                                         },
@@ -120,8 +137,8 @@ pub fn call_buttons_thread(elevator_hw: ElevatorHardware, tx_memory: cbc::Sender
 
                             OrderType::Hall => {
                                 tx_memory
-                                    .send(MemoryCommand::OrderQueue(
-                                        OrderQueueCommand::AddToOrderQueue {order},
+                                    .send(MemoryCommand::HallOrderQueue(
+                                        HallOrderQueueCommand::AddToHallOrderQueue {order},
                                     ))
                                     .unwrap();
                             }
@@ -137,7 +154,11 @@ pub fn call_buttons_thread(elevator_hw: ElevatorHardware, tx_memory: cbc::Sender
 }
 
 
-pub fn spawn_hardware_input_threads(elevator_hw: ElevatorHardware, tx_memory: cbc::Sender<MemoryCommand>, my_elevator_id: u16) {
+pub fn spawn_hardware_input_threads(
+    elevator_hw: ElevatorHardware, 
+    tx_memory: cbc::Sender<MemoryCommand>, 
+    my_elevator_id: u16
+) {
     {
         let elevator_hw = elevator_hw.clone();
         let tx_memory = tx_memory.clone();
@@ -178,12 +199,18 @@ pub fn spawn_hardware_input_threads(elevator_hw: ElevatorHardware, tx_memory: cb
     }
 }
 
-pub fn hardware_output_thread(elevator_hw: ElevatorHardware, rx_elevator_state: cbc::Receiver<Elevator>, rx_hall_orders: cbc::Receiver<Vec<Order>>, tx_memory: cbc::Sender<MemoryCommand>,
-my_elevator_id: u16) {
+
+pub fn hardware_output_thread(
+    elevator_hw: ElevatorHardware, 
+    rx_elevator_state: cbc::Receiver<Elevator>, 
+    rx_hall_orders: cbc::Receiver<Vec<Order>>, 
+    tx_memory: cbc::Sender<MemoryCommand>,
+    my_elevator_id: u16
+) {
 
     let mut local_elevator: Option<Elevator> = None;
     let mut assigned_hall_orders: Vec<Order> = Vec::new();
-    let mut execution_state: HardwareExecutionState = HardwareExecutionState::new();
+    let mut execution_context: HardwareExecutionContext = HardwareExecutionContext::new();
     let ticker = cbc::tick(Duration::from_millis(25));
 
     loop {
@@ -221,18 +248,24 @@ my_elevator_id: u16) {
                 &assigned_hall_orders,
                 &tx_memory,
                 my_elevator_id,
-                &mut execution_state,
+                &mut execution_context,
             );
         }
     }
 }
 
 
-pub fn execute_elevator_state(elevator_hw: &ElevatorHardware, elevator_state: &Elevator, assigned_hall_orders: &Vec<Order>, tx_memory: &cbc::Sender<MemoryCommand>,
-my_elevator_id: u16, execution_state: &mut HardwareExecutionState) {
+pub fn execute_elevator_state(
+    elevator_hw: &ElevatorHardware, 
+    elevator_state: &Elevator, 
+    assigned_hall_orders: &Vec<Order>, 
+    tx_memory: &cbc::Sender<MemoryCommand>,
+    my_elevator_id: u16, 
+    execution_context: &mut HardwareExecutionContext
+) {
     update_lights(
         elevator_hw,
-        elevator_state.get_cab_requests(),
+        elevator_state.get_cab_orders(),
         assigned_hall_orders,
         elevator_hw.num_floors,
     );
@@ -243,40 +276,40 @@ my_elevator_id: u16, execution_state: &mut HardwareExecutionState) {
     if matches!(elevator_state.get_dead_or_alive(), DeadOrAlive::Dead) {
         elevator_hw.motor_direction(elev::DIRN_STOP);
         elevator_hw.door_light(false);
-        execution_state.door_open_until = None;
-        execution_state.direction_to_clear_after_wait = None;
-        execution_state.travel_target_floor = None;
-        execution_state.travel_start_time = None;
+        execution_context.door_open_until = None;
+        execution_context.direction_to_clear_after_wait = None;
+        execution_context.travel_target_floor = None;
+        execution_context.travel_start_time = None;
         set_behaviour_if_changed(tx_memory, my_elevator_id, elevator_state, Behaviour::Idle);
         set_direction_if_changed(tx_memory, my_elevator_id, elevator_state, ElevatorDirection::Stop);
         return;
     }
 
-    if let Some(door_open_until) = execution_state.door_open_until {
+    if let Some(door_open_until) = execution_context.door_open_until {
         elevator_hw.motor_direction(elev::DIRN_STOP);
         elevator_hw.door_light(true);
-        execution_state.travel_target_floor = None;
-        execution_state.travel_start_time = None;
+        execution_context.travel_target_floor = None;
+        execution_context.travel_start_time = None;
         set_behaviour_if_changed(tx_memory, my_elevator_id, elevator_state, Behaviour::DoorOpen);
         set_direction_if_changed(tx_memory, my_elevator_id, elevator_state, ElevatorDirection::Stop);
 
         if elevator_state.get_obstruction() == &Obstruction::Obstructed {
-            execution_state.door_open_until = Some(Instant::now() + Duration::from_secs(3));
+            execution_context.door_open_until = Some(Instant::now() + Duration::from_secs(3));
             return;
         }
 
         if Instant::now() >= door_open_until {
-            match execution_state.direction_to_clear_after_wait.take() {
+            match execution_context.direction_to_clear_after_wait.take() {
                 Some(direction) => {
                     mark_served_hall_orders(assigned_hall_orders,
                                             current_floor,
                                             Some(direction),
                                             tx_memory);
-                    execution_state.door_open_until = Some(Instant::now() + Duration::from_secs(3));
+                    execution_context.door_open_until = Some(Instant::now() + Duration::from_secs(3));
                     return;
                 }
                 None => {
-                    execution_state.door_open_until = None;
+                    execution_context.door_open_until = None;
                     elevator_hw.door_light(false);
                 }
             }
@@ -286,7 +319,7 @@ my_elevator_id: u16, execution_state: &mut HardwareExecutionState) {
     }
 
     let mut all_orders: Vec<Order> = elevator_state
-        .get_cab_requests()
+        .get_cab_orders()
         .iter()
         .filter(|order| order.get_order_status() != &OrderStatus::Completed
                       && order.get_order_status() != &OrderStatus::ReadyForDeletion)
@@ -301,8 +334,8 @@ my_elevator_id: u16, execution_state: &mut HardwareExecutionState) {
     if all_orders.is_empty() {
         elevator_hw.motor_direction(elev::DIRN_STOP);
         elevator_hw.door_light(false);
-        execution_state.travel_target_floor = None;
-        execution_state.travel_start_time = None;
+        execution_context.travel_target_floor = None;
+        execution_context.travel_start_time = None;
         set_behaviour_if_changed(tx_memory, my_elevator_id, elevator_state, Behaviour::Idle);
         set_direction_if_changed(tx_memory, my_elevator_id, elevator_state, ElevatorDirection::Stop);
         return;
@@ -312,32 +345,37 @@ my_elevator_id: u16, execution_state: &mut HardwareExecutionState) {
 
     if current_floor == target_floor {
         set_dead_or_alive_if_changed(tx_memory, my_elevator_id, elevator_state, DeadOrAlive::Alive);
-        execution_state.travel_target_floor = None;
-        execution_state.travel_start_time = None;
+        execution_context.travel_target_floor = None;
+        execution_context.travel_start_time = None;
 
         elevator_hw.motor_direction(elev::DIRN_STOP);
         elevator_hw.door_light(true);
         set_behaviour_if_changed(tx_memory, my_elevator_id, elevator_state, Behaviour::DoorOpen);
         set_direction_if_changed(tx_memory, my_elevator_id, elevator_state, ElevatorDirection::Stop);
 
-        let (first_direction_to_clear, second_direction_to_clear) = choose_hall_directions_to_clear(elevator_state,
-                                                                                                     assigned_hall_orders,
-                                                                                                     &all_orders,
-                                                                                                     current_floor);
+        let (first_direction_to_clear, second_direction_to_clear) = 
+        choose_hall_directions_to_clear(
+            elevator_state,
+            assigned_hall_orders,
+            &all_orders,
+            current_floor
+        );
 
-        mark_served_orders(elevator_state,
-                           assigned_hall_orders,
-                           current_floor,
-                           first_direction_to_clear,
-                           tx_memory,
-                           my_elevator_id);
+        mark_served_cab_orders(
+            elevator_state,
+            assigned_hall_orders,
+            current_floor,
+            first_direction_to_clear,
+            tx_memory,
+            my_elevator_id
+        );
 
-        execution_state.door_open_until = Some(Instant::now() + Duration::from_secs(3));
-        execution_state.direction_to_clear_after_wait = second_direction_to_clear;
+        execution_context.door_open_until = Some(Instant::now() + Duration::from_secs(3));
+        execution_context.direction_to_clear_after_wait = second_direction_to_clear;
         return;
     }
 
-    execution_state.direction_to_clear_after_wait = None;
+    execution_context.direction_to_clear_after_wait = None;
 
     let moving_direction: ElevatorDirection = if target_floor > current_floor {
         ElevatorDirection::Up
@@ -345,13 +383,13 @@ my_elevator_id: u16, execution_state: &mut HardwareExecutionState) {
         ElevatorDirection::Down
     };
 
-    if execution_state.travel_target_floor != Some(target_floor) {
-        execution_state.travel_target_floor = Some(target_floor);
-        execution_state.travel_start_time = Some(Instant::now());
+    if execution_context.travel_target_floor != Some(target_floor) {
+        execution_context.travel_target_floor = Some(target_floor);
+        execution_context.travel_start_time = Some(Instant::now());
     }
 
-    if let Some(travel_start_time) = execution_state.travel_start_time {
-        if travel_start_time.elapsed() > Duration::from_secs(6) {
+    if let Some(travel_start_time) = execution_context.travel_start_time {
+        if travel_start_time.elapsed() > Duration::from_secs(8) {
             set_dead_or_alive_if_changed(tx_memory, my_elevator_id, elevator_state, DeadOrAlive::Dead);
             elevator_hw.motor_direction(elev::DIRN_STOP);
             elevator_hw.door_light(false);
@@ -373,6 +411,7 @@ my_elevator_id: u16, execution_state: &mut HardwareExecutionState) {
     }
 }
 
+
 fn set_behaviour_if_changed(tx_memory: &cbc::Sender<MemoryCommand>, my_elevator_id: u16, elevator_state: &Elevator, behaviour: Behaviour) {
     if elevator_state.get_behaviour() != &behaviour {
         tx_memory.send(MemoryCommand::ElevatorStatus(
@@ -383,6 +422,7 @@ fn set_behaviour_if_changed(tx_memory: &cbc::Sender<MemoryCommand>, my_elevator_
         )).unwrap();
     }
 }
+
 
 fn set_direction_if_changed(tx_memory: &cbc::Sender<MemoryCommand>, my_elevator_id: u16, elevator_state: &Elevator, direction: ElevatorDirection) {
     if elevator_state.get_direction() != &direction {
@@ -395,6 +435,7 @@ fn set_direction_if_changed(tx_memory: &cbc::Sender<MemoryCommand>, my_elevator_
     }
 }
 
+
 fn set_dead_or_alive_if_changed(tx_memory: &cbc::Sender<MemoryCommand>, my_elevator_id: u16, elevator_state: &Elevator, dead_or_alive: DeadOrAlive) {
     if elevator_state.get_dead_or_alive() != &dead_or_alive {
         tx_memory.send(MemoryCommand::ElevatorStatus(
@@ -403,8 +444,10 @@ fn set_dead_or_alive_if_changed(tx_memory: &cbc::Sender<MemoryCommand>, my_eleva
                 dead_or_alive,
             },
         )).unwrap();
+    println!("CHANGED DEAD OR ALIVE TO {:?}", dead_or_alive);
     }
 }
+
 
 pub fn update_lights(elevator_hw: &ElevatorHardware, cab_orders: &VecDeque<Order>, hall_orders: &Vec<Order>, num_floors: u8) {
     for floor in 0..num_floors {
@@ -444,6 +487,7 @@ pub fn choose_next_floor(current_floor: u8, orders: &Vec<Order>) -> u8 {
     .unwrap_or(current_floor)
 }
 
+
 fn choose_hall_directions_to_clear(elevator_state: &Elevator, assigned_hall_orders: &Vec<Order>, all_orders: &Vec<Order>, current_floor: u8)
 -> (Option<OrderDirection>, Option<OrderDirection>) {
     let hall_up_at_floor = assigned_hall_orders.iter().any(|order| {
@@ -478,10 +522,17 @@ fn choose_hall_directions_to_clear(elevator_state: &Elevator, assigned_hall_orde
     }
 }
 
-pub fn mark_served_orders(elevator_state: &Elevator, assigned_hall_orders: &Vec<Order>, current_floor: u8, hall_direction: Option<OrderDirection>, tx_memory: &cbc::Sender<MemoryCommand>,
-    my_elevator_id: u16) {
+
+pub fn mark_served_cab_orders(
+    elevator_state: &Elevator, 
+    assigned_hall_orders: &Vec<Order>, 
+    current_floor: u8, 
+    hall_direction: Option<OrderDirection>, 
+    tx_memory: &cbc::Sender<MemoryCommand>,
+    my_elevator_id: u16
+) {
     for order in elevator_state
-        .get_cab_requests()
+        .get_cab_orders()
         .iter()
         .filter(|o| *o.get_floor() == current_floor)
     {
@@ -499,6 +550,7 @@ pub fn mark_served_orders(elevator_state: &Elevator, assigned_hall_orders: &Vec<
     mark_served_hall_orders(assigned_hall_orders, current_floor, hall_direction, tx_memory);
 }
 
+
 fn mark_served_hall_orders(assigned_hall_orders: &Vec<Order>, current_floor: u8, hall_direction: Option<OrderDirection>, tx_memory: &cbc::Sender<MemoryCommand>) {
     for order in assigned_hall_orders
         .iter()
@@ -511,8 +563,8 @@ fn mark_served_hall_orders(assigned_hall_orders: &Vec<Order>, current_floor: u8,
         })
     {
         tx_memory
-            .send(MemoryCommand::OrderQueue(
-                OrderQueueCommand::SetOrderStatus {
+            .send(MemoryCommand::HallOrderQueue(
+                HallOrderQueueCommand::SetHallOrderStatus {
                     order_id: *order.get_order_id(),
                     status: OrderStatus::Completed,
                 },

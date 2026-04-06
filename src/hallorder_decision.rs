@@ -1,12 +1,12 @@
-use std::collections::{HashMap, VecDeque};
-use std::io::Write;
-use std::process::{Command};
-use serde::{Serialize, Deserialize};
 use crossbeam_channel as cbc;
+use serde::{Serialize, Deserialize};
+use std::collections::{HashMap, VecDeque};
+use std::process::{Command};
 
-use crate::memory::elevator::{Elevator, ElevatorDirection, DeadOrAlive, Behaviour};
-use crate::memory::orders::{Order, OrderDirection, OrderType, OrderStatus};
+use crate::memory::elevator::{Behaviour, DeadOrAlive, Elevator, ElevatorDirection, Obstruction};
+use crate::memory::order::{Order, OrderDirection, OrderType, OrderStatus};
 use crate::memory::world_view::WorldView;
+
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -17,6 +17,7 @@ pub struct ElevatorState {
     cab_requests: Vec<bool>,
 }
 
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Input {
@@ -24,11 +25,13 @@ pub struct Input {
     states: HashMap<String, ElevatorState>,
 }
 
+
 pub type Output = HashMap<String, Vec<[bool; 3]>>;
+
 
 impl Input {
     pub fn new(hall_requests: [[bool; 2]; 4], states: HashMap<String, ElevatorState>) -> Self {
-        Self{
+        Self {
             hall_requests,
             states,
         }
@@ -73,10 +76,14 @@ fn assigner(input: &Input, exe_path: &String) -> anyhow::Result<Output> {
 }
 
 
-fn assigner_output_to_assigned_orders(orderMap: HashMap<String, Vec<[bool; 3]>>, hallOrderMap: &HashMap<u16, Order>) -> HashMap<u16, VecDeque<Order>>{
+fn assigner_output_to_assigned_orders(
+    orderMap: HashMap<String, 
+    Vec<[bool; 3]>>, 
+    hallOrderMap: &HashMap<u16, Order>
+) -> HashMap<u16, VecDeque<Order>> {
 
     let mut assignedOrdersByID: HashMap<u16, VecDeque<Order>> = HashMap::new(); 
-    for (elevator, orders) in orderMap{
+    for (elevator, orders) in orderMap {
         let id: u16 = match elevator.parse() {
             Ok(elevatorID) => elevatorID,
             Err(e) => {print!("Parse failed {}. Returning empty hashmap", e);
@@ -108,7 +115,7 @@ fn assigner_output_to_assigned_orders(orderMap: HashMap<String, Vec<[bool; 3]>>,
 }  
 
 
-fn hall_order_format_converter(order_queue: &HashMap<u16, Order>) -> [[bool; 2]; 4]{
+fn hall_order_format_converter(order_queue: &HashMap<u16, Order>) -> [[bool; 2]; 4] {
     let mut queue = [[false; 2]; 4];
     for order in order_queue.values(){
         let dir_idx = match order.get_direction() {
@@ -121,7 +128,7 @@ fn hall_order_format_converter(order_queue: &HashMap<u16, Order>) -> [[bool; 2];
 }
 
 
-fn cab_order_format_converter(order_queue: &VecDeque<Order>) -> Vec<bool>{
+fn cab_order_format_converter(order_queue: &VecDeque<Order>) -> Vec<bool> {
     let mut queue: Vec<bool> = vec![false; 4];
     for order in order_queue {
         queue[*order.get_floor() as usize] = true;
@@ -136,13 +143,14 @@ pub fn assign_hall_orders(last_world_view: WorldView) -> anyhow::Result<HashMap<
     let filtered_elevators: HashMap<u16, Elevator> = last_world_view
         .get_elevator_statuses()
         .iter()
-        .filter(|(_, elevator)| elevator.get_dead_or_alive() == &DeadOrAlive::Alive)
+        .filter(|(_, elevator)| elevator.get_dead_or_alive() == &DeadOrAlive::Alive 
+        && elevator.get_obstruction() == &Obstruction::Clear)
         .map(|(id, elevator)| (*id, elevator.clone()))
         .collect();
 
     for (id, elevator) in filtered_elevators {
         let id_string: String = id.to_string();
-        let cab_requests: Vec<bool> = cab_order_format_converter(elevator.get_cab_requests());
+        let cab_requests: Vec<bool> = cab_order_format_converter(elevator.get_cab_orders());
         let state: ElevatorState = ElevatorState::new(
             elevator.get_behaviour().clone(),
             elevator.get_floor().clone(),
@@ -172,6 +180,7 @@ pub fn assign_hall_orders(last_world_view: WorldView) -> anyhow::Result<HashMap<
     ))
 }
 
+
 pub fn decision_thread(rx_decision: cbc::Receiver<WorldView>, tx_hall_orders: cbc::Sender<Vec<Order>>, my_elevator_id: u16) {
 
     let mut assigned_hall_orders: HashMap<u16, VecDeque<Order>> = HashMap::new();
@@ -185,13 +194,14 @@ pub fn decision_thread(rx_decision: cbc::Receiver<WorldView>, tx_hall_orders: cb
                     world_view = newer;
                 }
 
-                assigned_hall_orders = match assign_hall_orders(world_view) {
-                    Ok(orders) => orders,
-                    Err(e) => {
-                        println!("Failed to retrieve assignments from assigner. {}", e);
-                        HashMap::new()
+                match assign_hall_orders(world_view) {
+                    Ok(orders) => {
+                        assigned_hall_orders = orders;
                     }
-                };
+                    Err(e) => {
+                        continue;
+                    }
+                }
 
                 let my_filtered_hall_orders: Vec<Order> = assigned_hall_orders
                     .get(&my_elevator_id)

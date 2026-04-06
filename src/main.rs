@@ -1,25 +1,25 @@
 use crossbeam_channel as cbc;
 use std::thread;
 
-mod decision;
-mod memory;
-mod elevator_id;
-mod udpnet;
 mod elevator_driver;
+mod elevator_id;
+mod hallorder_decision;
+mod memory;
+mod udpnet;
 
-use crate::elevator_id::generate_id;
-use crate::elevator_driver::hardware_execution::{hardware_output_thread, spawn_hardware_input_threads};
 use crate::elevator_driver::elev::{ElevatorHardware, get_tcp_address};
+use crate::elevator_driver::hardware_execution::{hardware_output_thread, spawn_hardware_input_threads};
+use crate::elevator_id::generate_id;
+use crate::hallorder_decision::decision_thread;
 use crate::memory::elevator::Elevator;
-use crate::memory::orders::Order;
+use crate::memory::order::Order;
 use crate::memory::world_view::{WorldView, MemoryCommand, memory_thread};
-use crate::decision::decision_thread;
 use crate::udpnet::udp_execution::{network_rx_thread, network_tx_thread};
 
 const STARTUP_DELAY: u64 = 5000;
 
 fn main() {
-    print!("INITIALIZING, PLEASE WAIT {} SECONDS.", STARTUP_DELAY/1000);
+    print!("INITIALIZING, PLEASE WAIT {} SECONDS.\n", STARTUP_DELAY/1000);
     let my_elevator_id: u16 = generate_id();
     let my_session_id: u16 = rand::random();
     let udp_port: u16 = 20013;

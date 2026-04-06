@@ -3,6 +3,7 @@ use std::env;
 use std::fs;
 use std::hash::{Hash, Hasher};
 
+
 pub fn generate_id_from_machine_id () -> u16{
     let id_string: String = fs::read_to_string("/etc/machine-id").expect("Could not find machine-id.");
     let mut id = id_string.as_str();
@@ -13,6 +14,7 @@ pub fn generate_id_from_machine_id () -> u16{
     let hashed = hasher.finish();
     (hashed ^ (hashed >> 16) ^ (hashed >> 32) ^ (hashed >> 48)) as u16
 }
+
 
 pub fn generate_id () -> u16 {
     let args: Vec<String> = env::args().collect();
