@@ -162,7 +162,7 @@ pub fn assign_hall_orders(last_world_view: WorldView) -> anyhow::Result<HashMap<
 
     let filtered_hall_orders: HashMap<u16, Order> = last_world_view
         .get_hall_order_queue()
-        .get_order_queue()
+        .get_orders()
         .iter()
         .filter(|(_, order)| order.get_order_status() == &OrderStatus::Confirmed)
         .map(|(id, order)| (*id, order.clone()))

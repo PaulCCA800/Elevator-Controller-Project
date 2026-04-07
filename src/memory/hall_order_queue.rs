@@ -31,12 +31,12 @@ impl HallOrderQueue{
     }
 
 
-    pub fn get_order_queue(&self) -> &HashMap<u16, Order> {
+    pub fn get_orders(&self) -> &HashMap<u16, Order> {
         return &self.hall_order_queue
     }
 
 
-    pub fn get_mut_hall_order_queue(&mut self) -> &mut HashMap<u16, Order> {
+    pub fn get_mut_orders(&mut self) -> &mut HashMap<u16, Order> {
         return &mut self.hall_order_queue
     }
 
@@ -48,6 +48,10 @@ impl HallOrderQueue{
 
     pub fn get_mut_pending_cleanup(&mut self) -> &mut HashSet<u16> {
         &mut self.hall_orders_pending_cleanup
+    }
+
+    pub fn remove_order_from_pending_cleanup(&mut self, order_id: u16) {
+        &mut self.get_mut_pending_cleanup().remove(&order_id);
     }
 
 
@@ -63,12 +67,12 @@ impl HallOrderQueue{
 
 
     pub fn add_to_queue(&mut self, order: Order) {
-        self.hall_order_queue.insert(*order.get_order_id(), order);
+        self.get_mut_orders().insert(*order.get_order_id(), order);
     }
 
 
     pub fn remove_from_queue(&mut self, order_id: u16) {
-        self.hall_order_queue.remove(&order_id);
+        self.get_mut_orders().remove(&order_id);
     }
 
 
@@ -103,7 +107,7 @@ impl HallOrderQueue{
     ) {
         let mut new_pending_cleanup: HashSet<u16> = HashSet::new();
 
-        for order in self.get_mut_hall_order_queue().values_mut() {
+        for order in self.get_mut_orders().values_mut() {
             let order_id: u16 = *order.get_order_id();
             let unique_elevator_ids_count =
                 order.get_ack_barrier().iter().collect::<HashSet<_>>().len();
@@ -129,7 +133,11 @@ impl HallOrderQueue{
                 new_pending_cleanup.insert(order_id);
             }
         }
-        self.get_mut_pending_cleanup().extend(new_pending_cleanup);
+        self.get_mut_pending_cleanup().extend(&new_pending_cleanup);
+
+        for order_id in new_pending_cleanup {
+            self.remove_from_queue(order_id);
+        }
     }
 }
 

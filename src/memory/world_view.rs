@@ -328,10 +328,10 @@ impl WorldView {
             .clone();
 
             let my_hall_order_queue: &mut HashMap<u16, Order> =
-                self.get_mut_hall_order_queue().get_mut_hall_order_queue();
+                self.get_mut_hall_order_queue().get_mut_orders();
 
             let incoming_hall_order_queue: &HashMap<u16, Order> =
-            incoming_world_view.get_hall_order_queue().get_order_queue();
+            incoming_world_view.get_hall_order_queue().get_orders();
 
             let incoming_hall_order_ids: Vec<u16> = 
             incoming_hall_order_queue
@@ -465,7 +465,7 @@ impl WorldView {
             me_resurrected) && !other_resurrected {
 
             let incoming_hall_order_queue: &HashMap<u16, Order> =
-                incoming_world_view.hall_order_queue.get_order_queue();
+                incoming_world_view.hall_order_queue.get_orders();
 
             for order in incoming_hall_order_queue.values() {
                 let order_id: u16 = *order.get_order_id();
@@ -771,15 +771,12 @@ pub fn memory_thread(
             }
             
             recv(cleanup_ticker) -> _ => {
-                let order_ids: Vec<u16> = my_local_world_view
-                    .get_mut_hall_order_queue()
-                    .get_mut_pending_cleanup()
-                    .drain()
-                    .collect();
-
-                for order_id in order_ids {
-                    my_local_world_view.get_mut_hall_order_queue().remove_from_queue(order_id);
-                }
+                println!("MY WV; {:?}", my_local_world_view);
+                my_local_world_view
+                .get_mut_hall_order_queue()
+                .get_mut_pending_cleanup()
+                .clear();
+                println!("MY WV; {:?}", my_local_world_view);
             }
         }
 
